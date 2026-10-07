@@ -282,7 +282,9 @@ model CompanySettings {
   email       String? @db.VarChar(150)
   website     String? @db.VarChar(200)
   taxNumber   String? @db.VarChar(100)
-  logoPath    String? @db.Text
+  logo1Path   String? @db.Text
+  logo2Path   String? @db.Text
+  logo3Path   String? @db.Text
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
