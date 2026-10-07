@@ -1,0 +1,310 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+enum UserRole {
+  ADMIN
+  USER
+}
+
+enum ServiceType {
+  UMRAH_VISA
+  HOTEL_ACCOMMODATION
+  AIR_TICKET
+  TRANSPORTATION
+}
+
+enum VisaType {
+  GROUP
+  INDIVIDUAL_VISA
+  HOST_UMRAH_VISA
+}
+
+enum AcType {
+  AC
+  NON_AC
+}
+
+enum BoardType {
+  ROOM_ONLY
+  BED_BREAKFAST
+}
+
+enum TicketType {
+  ONE_WAY
+  RETURN
+}
+
+enum QuotationStatus {
+  DRAFT
+  GENERATED
+  ACCEPTED
+  REJECTED
+  CANCELLED
+}
+
+enum InvoiceStatus {
+  UNPAID
+  PARTIALLY_PAID
+  PAID
+  CANCELLED
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  ONLINE_TRANSFER
+  CHEQUE
+  OTHER
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  name         String   @db.VarChar(150)
+  username     String   @unique @db.VarChar(100)
+  passwordHash String   @db.VarChar(255)
+  role         UserRole @default(USER)
+  isActive     Boolean  @default(true)
+
+  quotations Quotation[]
+  invoices   Invoice[]
+  payments   Payment[]
+  auditLogs  AuditLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive])
+}
+
+model Customer {
+  id           Int     @id @default(autoincrement())
+  customerCode String  @unique @db.VarChar(50)
+  name         String  @db.VarChar(150)
+  mobile       String  @db.VarChar(50)
+  whatsapp     String? @db.VarChar(50)
+  email        String? @db.VarChar(150)
+  address      String? @db.Text
+  nationality  String? @db.VarChar(100)
+  passportNo   String? @db.VarChar(100)
+  notes        String? @db.Text
+  isActive     Boolean @default(true)
+
+  quotations Quotation[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([name])
+  @@index([mobile])
+  @@index([passportNo])
+  @@index([isActive])
+}
+
+model Route {
+  id       Int     @id @default(autoincrement())
+  name     String  @unique @db.VarChar(200)
+  isActive Boolean @default(true)
+
+  quotationItems QuotationItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive])
+}
+
+model VehicleType {
+  id        Int     @id @default(autoincrement())
+  name      String  @unique @db.VarChar(100)
+  seatCount Int?
+  isActive  Boolean @default(true)
+
+  quotationItems QuotationItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive])
+}
+
+model Quotation {
+  id          Int    @id @default(autoincrement())
+  quotationNo String @unique @db.VarChar(50)
+  customerId  Int
+
+  quotationDate DateTime  @default(now())
+  validUntil    DateTime?
+
+  customerName        String  @db.VarChar(150)
+  customerMobile      String  @db.VarChar(50)
+  customerWhatsapp    String? @db.VarChar(50)
+  customerEmail       String? @db.VarChar(150)
+  customerAddress     String? @db.Text
+  customerNationality String? @db.VarChar(100)
+  customerPassportNo  String? @db.VarChar(100)
+
+  subtotal    Decimal @db.Decimal(12, 2)
+  discount    Decimal @default(0) @db.Decimal(12, 2)
+  totalAmount Decimal @db.Decimal(12, 2)
+
+  status QuotationStatus @default(DRAFT)
+  notes  String?         @db.Text
+
+  createdById Int
+  createdBy   User     @relation(fields: [createdById], references: [id])
+  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
+
+  items   QuotationItem[]
+  invoice Invoice?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([customerId])
+  @@index([quotationDate])
+  @@index([status])
+  @@index([createdById])
+}
+
+model QuotationItem {
+  id          Int @id @default(autoincrement())
+  quotationId Int
+
+  serviceType ServiceType
+  description String      @db.Text
+
+  visaType   VisaType?
+  hotelName  String?     @db.VarChar(200)
+  paxCount   Int?
+  acType     AcType?
+  boardType  BoardType?
+  ticketType TicketType?
+
+  routeId       Int?
+  vehicleTypeId Int?
+
+  amount      Decimal @db.Decimal(12, 2)
+  quantity    Decimal @default(1) @db.Decimal(10, 2)
+  discount    Decimal @default(0) @db.Decimal(12, 2)
+  totalAmount Decimal @db.Decimal(12, 2)
+
+  sortOrder Int @default(0)
+
+  quotation   Quotation    @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  route       Route?       @relation(fields: [routeId], references: [id], onDelete: Restrict)
+  vehicleType VehicleType? @relation(fields: [vehicleTypeId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([quotationId])
+  @@index([serviceType])
+  @@index([routeId])
+  @@index([vehicleTypeId])
+}
+
+model Invoice {
+  id          Int    @id @default(autoincrement())
+  invoiceNo   String @unique @db.VarChar(50)
+  quotationId Int    @unique
+  customerId  Int
+
+  invoiceDate DateTime @default(now())
+
+  customerName        String  @db.VarChar(150)
+  customerMobile      String  @db.VarChar(50)
+  customerWhatsapp    String? @db.VarChar(50)
+  customerEmail       String? @db.VarChar(150)
+  customerAddress     String? @db.Text
+  customerNationality String? @db.VarChar(100)
+  customerPassportNo  String? @db.VarChar(100)
+
+  subtotal      Decimal @db.Decimal(12, 2)
+  discount      Decimal @default(0) @db.Decimal(12, 2)
+  totalAmount   Decimal @db.Decimal(12, 2)
+  paidAmount    Decimal @default(0) @db.Decimal(12, 2)
+  balanceAmount Decimal @default(0) @db.Decimal(12, 2)
+
+  status InvoiceStatus @default(UNPAID)
+  notes  String?       @db.Text
+
+  createdById Int
+
+  quotation Quotation @relation(fields: [quotationId], references: [id], onDelete: Restrict)
+  createdBy User      @relation(fields: [createdById], references: [id])
+  payments  Payment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([customerId])
+  @@index([invoiceDate])
+  @@index([status])
+  @@index([createdById])
+}
+
+model Payment {
+  id        Int @id @default(autoincrement())
+  invoiceId Int
+
+  paymentDate DateTime      @default(now())
+  amount      Decimal       @db.Decimal(12, 2)
+  method      PaymentMethod
+  referenceNo String?       @db.VarChar(100)
+  notes       String?       @db.Text
+
+  createdById Int
+
+  invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  createdBy User    @relation(fields: [createdById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([invoiceId])
+  @@index([paymentDate])
+  @@index([method])
+  @@index([createdById])
+}
+
+model CompanySettings {
+  id Int @id @default(1)
+
+  companyName String  @db.VarChar(200)
+  address     String? @db.Text
+  phone       String? @db.VarChar(100)
+  email       String? @db.VarChar(150)
+  website     String? @db.VarChar(200)
+  taxNumber   String? @db.VarChar(100)
+  logoPath    String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AuditLog {
+  id Int @id @default(autoincrement())
+
+  userId      Int?
+  module      String  @db.VarChar(100)
+  action      String  @db.VarChar(100)
+  entity      String? @db.VarChar(100)
+  entityId    String? @db.VarChar(100)
+  description String  @db.Text
+  metadata    Json?
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([module])
+  @@index([action])
+  @@index([createdAt])
+}
