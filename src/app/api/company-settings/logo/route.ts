@@ -1,20 +1,22 @@
 import { NextResponse } from "next/server";
-import { promises as fs } from "fs";
 import path from "path";
+import { promises as fs } from "fs";
 
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
+import { writeAuditLog } from "@/lib/audit";
+
 import {
   createLogoFilename,
   deleteLogoFile,
   ensureCompanyStorage,
-  getLogoFilePath,
   getLogoUrl,
 } from "@/lib/company-storage";
 
 type LogoSlot = 1 | 2 | 3;
 
-const MAX_FILE_SIZE = 5 * 1024 * 1024;
+const MAX_FILE_SIZE =
+  5 * 1024 * 1024;
 
 const ALLOWED_TYPES = new Set([
   "image/jpeg",
@@ -24,50 +26,72 @@ const ALLOWED_TYPES = new Set([
   "image/svg+xml",
 ]);
 
-function parseSlot(value: FormDataEntryValue | null): LogoSlot | null {
+function parseSlot(
+  value: FormDataEntryValue | null
+): LogoSlot | null {
   if (typeof value !== "string") {
     return null;
   }
 
-  if (value === "1" || value === "2" || value === "3") {
+  if (
+    value === "1" ||
+    value === "2" ||
+    value === "3"
+  ) {
     return Number(value) as LogoSlot;
   }
 
   return null;
 }
 
+function getLogoField(
+  slot: LogoSlot
+) {
+  if (slot === 1) {
+    return "logo1Path";
+  }
+
+  if (slot === 2) {
+    return "logo2Path";
+  }
+
+  return "logo3Path";
+}
+
 async function requireAdmin() {
-  const userId = await getSessionUserId();
+  const userId =
+    await getSessionUserId();
 
   if (!userId) {
     return null;
   }
 
-  const user = await prisma.user.findUnique({
-    where: {
-      id: userId,
-    },
-    select: {
-      id: true,
-      role: true,
-      isActive: true,
-    },
-  });
+  const user =
+    await prisma.user.findUnique({
+      where: {
+        id: userId,
+      },
+      select: {
+        id: true,
+        role: true,
+        isActive: true,
+      },
+    });
 
-  if (!user || !user.isActive || user.role !== "ADMIN") {
+  if (
+    !user ||
+    !user.isActive ||
+    user.role !== "ADMIN"
+  ) {
     return null;
   }
 
   return user;
 }
 
-function getLogoField(slot: LogoSlot) {
-  if (slot === 1) return "logo1Path";
-  if (slot === 2) return "logo2Path";
-  return "logo3Path";
-}
-
-export async function POST(request: Request) {
+export async function POST(
+  request: Request
+) {
   try {
     const user = await requireAdmin();
 
@@ -81,16 +105,21 @@ export async function POST(request: Request) {
       );
     }
 
-    const formData = await request.formData();
+    const formData =
+      await request.formData();
 
-    const slot = parseSlot(formData.get("slot"));
+    const slot = parseSlot(
+      formData.get("slot")
+    );
+
     const file = formData.get("file");
 
     if (!slot) {
       return NextResponse.json(
         {
           success: false,
-          message: "Invalid logo slot.",
+          message:
+            "Invalid logo slot.",
         },
         { status: 400 }
       );
@@ -100,7 +129,8 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           success: false,
-          message: "Please select an image.",
+          message:
+            "Please select an image.",
         },
         { status: 400 }
       );
@@ -110,62 +140,107 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           success: false,
-          message: "Only JPG, PNG, WEBP, GIF or SVG images are allowed.",
+          message:
+            "Only JPG, PNG, WEBP, GIF or SVG images are allowed.",
         },
         { status: 400 }
       );
     }
 
-    if (file.size > MAX_FILE_SIZE) {
+    if (
+      file.size > MAX_FILE_SIZE
+    ) {
       return NextResponse.json(
         {
           success: false,
-          message: "Logo file size must not exceed 5 MB.",
+          message:
+            "Logo file size must not exceed 5 MB.",
         },
         { status: 400 }
       );
     }
 
-    const directory = await ensureCompanyStorage();
+    const directory =
+      await ensureCompanyStorage();
 
-    const filename = createLogoFilename(file.name, file.type);
-    const filePath = path.join(directory, filename);
+    const filename =
+      createLogoFilename(
+        file.name,
+        file.type
+      );
 
-    const buffer = Buffer.from(await file.arrayBuffer());
+    const filePath =
+      path.join(
+        directory,
+        filename
+      );
 
-    await fs.writeFile(filePath, buffer);
+    const buffer = Buffer.from(
+      await file.arrayBuffer()
+    );
 
-    const field = getLogoField(slot);
+    await fs.writeFile(
+      filePath,
+      buffer
+    );
 
-    const existingSettings = await prisma.companySettings.findUnique({
-      where: {
-        id: 1,
-      },
-    });
+    const field =
+      getLogoField(slot);
 
-    const oldPath = existingSettings?.[field] ?? null;
+    const existingSettings =
+      await prisma.companySettings.findUnique(
+        {
+          where: {
+            id: 1,
+          },
+        }
+      );
 
-    const settings = await prisma.companySettings.upsert({
-      where: {
-        id: 1,
-      },
-      create: {
-        id: 1,
-        companyName: "Company Name",
-        [field]: filename,
-      },
-      update: {
-        [field]: filename,
-      },
-    });
+    const oldPath =
+      existingSettings?.[field] ?? null;
+
+    const settings =
+      await prisma.companySettings.upsert({
+        where: {
+          id: 1,
+        },
+        create: {
+          id: 1,
+          companyName:
+            "Company Name",
+          [field]: filename,
+        },
+        update: {
+          [field]: filename,
+        },
+      });
 
     if (oldPath) {
-      await deleteLogoFile(path.basename(oldPath));
+      await deleteLogoFile(
+        path.basename(oldPath)
+      );
     }
+
+    await writeAuditLog({
+      userId: user.id,
+      module: "COMPANY_SETTINGS",
+      action: "LOGO_UPLOAD",
+      entity: "CompanySettings",
+      entityId: "1",
+      description:
+        `Uploaded company logo ${slot}.`,
+      metadata: {
+        slot,
+        filename,
+        mimeType: file.type,
+        size: file.size,
+      },
+    });
 
     return NextResponse.json({
       success: true,
-      message: `Logo ${slot} uploaded successfully.`,
+      message:
+        `Logo ${slot} uploaded successfully.`,
       logo: {
         slot,
         filename,
@@ -174,19 +249,25 @@ export async function POST(request: Request) {
       settings,
     });
   } catch (error) {
-    console.error("Company logo upload error:", error);
+    console.error(
+      "Company logo upload error:",
+      error
+    );
 
     return NextResponse.json(
       {
         success: false,
-        message: "Unable to upload logo.",
+        message:
+          "Unable to upload logo.",
       },
       { status: 500 }
     );
   }
 }
 
-export async function DELETE(request: Request) {
+export async function DELETE(
+  request: Request
+) {
   try {
     const user = await requireAdmin();
 
@@ -200,35 +281,44 @@ export async function DELETE(request: Request) {
       );
     }
 
-    const body = await request.json();
-    const slot = parseSlot(body.slot);
+    const body =
+      await request.json();
+
+    const slot = parseSlot(
+      body.slot
+    );
 
     if (!slot) {
       return NextResponse.json(
         {
           success: false,
-          message: "Invalid logo slot.",
+          message:
+            "Invalid logo slot.",
         },
         { status: 400 }
       );
     }
 
-    const field = getLogoField(slot);
+    const field =
+      getLogoField(slot);
 
-    const settings = await prisma.companySettings.findUnique({
-      where: {
-        id: 1,
-      },
-    });
+    const settings =
+      await prisma.companySettings.findUnique({
+        where: {
+          id: 1,
+        },
+      });
 
     if (!settings) {
       return NextResponse.json({
         success: true,
-        message: "No company settings found.",
+        message:
+          "No company settings found.",
       });
     }
 
-    const existingPath = settings[field];
+    const existingPath =
+      settings[field];
 
     await prisma.companySettings.update({
       where: {
@@ -240,20 +330,40 @@ export async function DELETE(request: Request) {
     });
 
     if (existingPath) {
-      await deleteLogoFile(path.basename(existingPath));
+      await deleteLogoFile(
+        path.basename(existingPath)
+      );
     }
+
+    await writeAuditLog({
+      userId: user.id,
+      module: "COMPANY_SETTINGS",
+      action: "LOGO_DELETE",
+      entity: "CompanySettings",
+      entityId: "1",
+      description:
+        `Removed company logo ${slot}.`,
+      metadata: {
+        slot,
+      },
+    });
 
     return NextResponse.json({
       success: true,
-      message: `Logo ${slot} removed successfully.`,
+      message:
+        `Logo ${slot} removed successfully.`,
     });
   } catch (error) {
-    console.error("Company logo delete error:", error);
+    console.error(
+      "Company logo delete error:",
+      error
+    );
 
     return NextResponse.json(
       {
         success: false,
-        message: "Unable to remove logo.",
+        message:
+          "Unable to remove logo.",
       },
       { status: 500 }
     );

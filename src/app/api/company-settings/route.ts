@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
+import { writeAuditLog } from "@/lib/audit";
 
 async function requireAdmin() {
   const userId = await getSessionUserId();
@@ -21,7 +22,11 @@ async function requireAdmin() {
     },
   });
 
-  if (!user || !user.isActive || user.role !== "ADMIN") {
+  if (
+    !user ||
+    !user.isActive ||
+    user.role !== "ADMIN"
+  ) {
     return null;
   }
 
@@ -42,10 +47,21 @@ export async function GET() {
       );
     }
 
-    const settings = await prisma.companySettings.findUnique({
-      where: {
-        id: 1,
-      },
+    const settings =
+      await prisma.companySettings.findUnique({
+        where: {
+          id: 1,
+        },
+      });
+
+    await writeAuditLog({
+      userId: user.id,
+      module: "COMPANY_SETTINGS",
+      action: "VIEW",
+      entity: "CompanySettings",
+      entityId: "1",
+      description:
+        "Viewed company settings.",
     });
 
     return NextResponse.json({
@@ -53,19 +69,25 @@ export async function GET() {
       settings,
     });
   } catch (error) {
-    console.error("Company settings GET error:", error);
+    console.error(
+      "Company settings GET error:",
+      error
+    );
 
     return NextResponse.json(
       {
         success: false,
-        message: "Unable to load company settings.",
+        message:
+          "Unable to load company settings.",
       },
       { status: 500 }
     );
   }
 }
 
-export async function PATCH(request: Request) {
+export async function PATCH(
+  request: Request
+) {
   try {
     const user = await requireAdmin();
 
@@ -115,47 +137,68 @@ export async function PATCH(request: Request) {
       return NextResponse.json(
         {
           success: false,
-          message: "Company name is required.",
+          message:
+            "Company name is required.",
         },
         { status: 400 }
       );
     }
 
-    const settings = await prisma.companySettings.upsert({
-      where: {
-        id: 1,
-      },
-      create: {
-        id: 1,
-        companyName,
-        address,
-        phone,
-        email,
-        website,
-        taxNumber,
-      },
-      update: {
-        companyName,
-        address,
-        phone,
-        email,
-        website,
-        taxNumber,
+    const settings =
+      await prisma.companySettings.upsert({
+        where: {
+          id: 1,
+        },
+        create: {
+          id: 1,
+          companyName,
+          address,
+          phone,
+          email,
+          website,
+          taxNumber,
+        },
+        update: {
+          companyName,
+          address,
+          phone,
+          email,
+          website,
+          taxNumber,
+        },
+      });
+
+    await writeAuditLog({
+      userId: user.id,
+      module: "COMPANY_SETTINGS",
+      action: "UPDATE",
+      entity: "CompanySettings",
+      entityId: "1",
+      description:
+        "Updated company settings.",
+      metadata: {
+        companyName:
+          settings.companyName,
       },
     });
 
     return NextResponse.json({
       success: true,
-      message: "Company settings saved successfully.",
+      message:
+        "Company settings saved successfully.",
       settings,
     });
   } catch (error) {
-    console.error("Company settings PATCH error:", error);
+    console.error(
+      "Company settings PATCH error:",
+      error
+    );
 
     return NextResponse.json(
       {
         success: false,
-        message: "Unable to save company settings.",
+        message:
+          "Unable to save company settings.",
       },
       { status: 500 }
     );

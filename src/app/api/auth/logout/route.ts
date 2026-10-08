@@ -1,21 +1,53 @@
 import { NextResponse } from "next/server";
-import { SESSION_COOKIE } from "@/lib/auth";
+
+import {
+  getSessionUserId,
+  SESSION_COOKIE,
+} from "@/lib/auth";
+import { writeAuditLog } from "@/lib/audit";
 
 export async function POST() {
-  const response = NextResponse.json({
-    success: true,
-    message: "Logged out successfully.",
-  });
+  const userId = await getSessionUserId();
 
-  response.cookies.set({
-    name: SESSION_COOKIE,
-    value: "",
-    httpOnly: true,
-    expires: new Date(0),
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-  });
+  try {
+    if (userId) {
+      await writeAuditLog({
+        userId,
+        module: "AUTH",
+        action: "LOGOUT",
+        entity: "User",
+        entityId: String(userId),
+        description: "User logged out.",
+      });
+    }
 
-  return response;
+    const response = NextResponse.json({
+      success: true,
+      message: "Logged out successfully.",
+    });
+
+    response.cookies.set({
+      name: SESSION_COOKIE,
+      value: "",
+      httpOnly: true,
+      expires: new Date(0),
+      sameSite: "lax",
+      secure:
+        process.env.NODE_ENV === "production",
+      path: "/",
+    });
+
+    return response;
+  } catch (error) {
+    console.error("Logout error:", error);
+
+    return NextResponse.json(
+      {
+        success: false,
+        message:
+          "Unable to process logout.",
+      },
+      { status: 500 }
+    );
+  }
 }

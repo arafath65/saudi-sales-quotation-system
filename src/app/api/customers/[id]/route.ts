@@ -2,9 +2,11 @@ import { NextResponse } from "next/server";
 
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
+import { writeAuditLog } from "@/lib/audit";
 
 async function requireSession() {
-  const userId = await getSessionUserId();
+  const userId =
+    await getSessionUserId();
 
   if (!userId) {
     return null;
@@ -22,22 +24,34 @@ async function requireSession() {
   });
 }
 
-function cleanString(value: unknown) {
+function cleanString(
+  value: unknown
+) {
   if (typeof value !== "string") {
     return null;
   }
 
-  const trimmed = value.trim();
+  const trimmed =
+    value.trim();
 
   return trimmed || null;
 }
 
-async function getId(params: Promise<{ id: string }>) {
-  const { id } = await params;
+async function parseId(
+  params: Promise<{
+    id: string;
+  }>
+) {
+  const { id } =
+    await params;
 
-  const parsed = Number(id);
+  const parsed =
+    Number(id);
 
-  if (!Number.isInteger(parsed) || parsed <= 0) {
+  if (
+    !Number.isInteger(parsed) ||
+    parsed <= 0
+  ) {
     return null;
   }
 
@@ -46,60 +60,92 @@ async function getId(params: Promise<{ id: string }>) {
 
 export async function GET(
   _request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  {
+    params,
+  }: {
+    params: Promise<{
+      id: string;
+    }>;
+  }
 ) {
   try {
-    const user = await requireSession();
+    const user =
+      await requireSession();
 
     if (!user || !user.isActive) {
       return NextResponse.json(
         {
           success: false,
-          message: "Unauthorized.",
+          message:
+            "Unauthorized.",
         },
         { status: 401 }
       );
     }
 
-    const id = await getId(params);
+    const id =
+      await parseId(params);
 
     if (!id) {
       return NextResponse.json(
         {
           success: false,
-          message: "Invalid customer ID.",
+          message:
+            "Invalid customer ID.",
         },
         { status: 400 }
       );
     }
 
-    const customer = await prisma.customer.findUnique({
-      where: {
-        id,
-      },
-    });
+    const customer =
+      await prisma.customer.findUnique({
+        where: {
+          id,
+        },
+      });
 
     if (!customer) {
       return NextResponse.json(
         {
           success: false,
-          message: "Customer not found.",
+          message:
+            "Customer not found.",
         },
         { status: 404 }
       );
     }
+
+    await writeAuditLog({
+      userId: user.id,
+      module: "CUSTOMER",
+      action: "VIEW",
+      entity: "Customer",
+      entityId: String(
+        customer.id
+      ),
+      description:
+        `Viewed customer ${customer.name}.`,
+      metadata: {
+        customerCode:
+          customer.customerCode,
+      },
+    });
 
     return NextResponse.json({
       success: true,
       customer,
     });
   } catch (error) {
-    console.error("Customer GET error:", error);
+    console.error(
+      "Customer GET error:",
+      error
+    );
 
     return NextResponse.json(
       {
         success: false,
-        message: "Unable to load customer.",
+        message:
+          "Unable to load customer.",
       },
       { status: 500 }
     );
@@ -108,63 +154,95 @@ export async function GET(
 
 export async function PATCH(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  {
+    params,
+  }: {
+    params: Promise<{
+      id: string;
+    }>;
+  }
 ) {
   try {
-    const user = await requireSession();
+    const user =
+      await requireSession();
 
     if (!user || !user.isActive) {
       return NextResponse.json(
         {
           success: false,
-          message: "Unauthorized.",
+          message:
+            "Unauthorized.",
         },
         { status: 401 }
       );
     }
 
-    const id = await getId(params);
+    const id =
+      await parseId(params);
 
     if (!id) {
       return NextResponse.json(
         {
           success: false,
-          message: "Invalid customer ID.",
+          message:
+            "Invalid customer ID.",
         },
         { status: 400 }
       );
     }
 
-    const existing = await prisma.customer.findUnique({
-      where: {
-        id,
-      },
-    });
+    const existing =
+      await prisma.customer.findUnique({
+        where: {
+          id,
+        },
+      });
 
     if (!existing) {
       return NextResponse.json(
         {
           success: false,
-          message: "Customer not found.",
+          message:
+            "Customer not found.",
         },
         { status: 404 }
       );
     }
 
-    const body = await request.json();
+    const body =
+      await request.json();
 
-    const name = cleanString(body.name);
-    const mobile = cleanString(body.mobile);
+    const name =
+      cleanString(body.name);
 
-    const whatsapp = cleanString(body.whatsapp);
-    const email = cleanString(body.email);
-    const address = cleanString(body.address);
-    const nationality = cleanString(body.nationality);
-    const passportNo = cleanString(body.passportNo);
-    const notes = cleanString(body.notes);
+    const mobile =
+      cleanString(body.mobile);
+
+    const whatsapp =
+      cleanString(body.whatsapp);
+
+    const email =
+      cleanString(body.email);
+
+    const address =
+      cleanString(body.address);
+
+    const nationality =
+      cleanString(
+        body.nationality
+      );
+
+    const passportNo =
+      cleanString(
+        body.passportNo
+      );
+
+    const notes =
+      cleanString(body.notes);
 
     const isActive =
-      typeof body.isActive === "boolean"
+      typeof body.isActive ===
+      "boolean"
         ? body.isActive
         : existing.isActive;
 
@@ -172,7 +250,8 @@ export async function PATCH(
       return NextResponse.json(
         {
           success: false,
-          message: "Customer name is required.",
+          message:
+            "Customer name is required.",
         },
         { status: 400 }
       );
@@ -182,51 +261,91 @@ export async function PATCH(
       return NextResponse.json(
         {
           success: false,
-          message: "Mobile number is required.",
+          message:
+            "Mobile number is required.",
         },
         { status: 400 }
       );
     }
 
-    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    if (
+      email &&
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
+        email
+      )
+    ) {
       return NextResponse.json(
         {
           success: false,
-          message: "Please enter a valid email address.",
+          message:
+            "Please enter a valid email address.",
         },
         { status: 400 }
       );
     }
 
-    const customer = await prisma.customer.update({
-      where: {
-        id,
-      },
-      data: {
-        name,
-        mobile,
-        whatsapp,
-        email,
-        address,
-        nationality,
-        passportNo,
-        notes,
-        isActive,
+    const customer =
+      await prisma.customer.update({
+        where: {
+          id,
+        },
+        data: {
+          name,
+          mobile,
+          whatsapp,
+          email,
+          address,
+          nationality,
+          passportNo,
+          notes,
+          isActive,
+        },
+      });
+
+    await writeAuditLog({
+      userId: user.id,
+      module: "CUSTOMER",
+      action:
+        existing.isActive !==
+        customer.isActive
+          ? customer.isActive
+            ? "ACTIVATE"
+            : "DEACTIVATE"
+          : "UPDATE",
+      entity: "Customer",
+      entityId: String(
+        customer.id
+      ),
+      description:
+        existing.isActive !==
+        customer.isActive
+          ? `${customer.isActive ? "Activated" : "Deactivated"} customer ${customer.name}.`
+          : `Updated customer ${customer.name}.`,
+      metadata: {
+        customerCode:
+          customer.customerCode,
+        isActive:
+          customer.isActive,
       },
     });
 
     return NextResponse.json({
       success: true,
-      message: "Customer updated successfully.",
+      message:
+        "Customer updated successfully.",
       customer,
     });
   } catch (error) {
-    console.error("Customer PATCH error:", error);
+    console.error(
+      "Customer PATCH error:",
+      error
+    );
 
     return NextResponse.json(
       {
         success: false,
-        message: "Unable to update customer.",
+        message:
+          "Unable to update customer.",
       },
       { status: 500 }
     );

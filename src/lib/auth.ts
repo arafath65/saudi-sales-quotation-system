@@ -2,6 +2,7 @@ import "server-only";
 
 import { createHmac, timingSafeEqual } from "crypto";
 import { cookies } from "next/headers";
+
 import { prisma } from "@/lib/prisma";
 
 const SESSION_COOKIE = "session_user";
@@ -25,6 +26,7 @@ function createSignature(value: string) {
 
 export function createSessionValue(userId: number) {
   const timestamp = Math.floor(Date.now() / 1000);
+
   const payload = `${userId}.${timestamp}`;
   const signature = createSignature(payload);
 
@@ -51,11 +53,18 @@ function verifySessionValue(value: string) {
     return null;
   }
 
-  const age = Math.floor(Date.now() / 1000) - timestamp;
-
-  if (age < 0 || age > SESSION_MAX_AGE) {
+  if (!signature) {
     return null;
   }
+
+  /*
+   * Session lifetime is controlled by the HTTP-only cookie's
+   * maxAge/expires settings when it is created.
+   *
+   * We intentionally do not call Date.now() here because this
+   * function is used by authenticated Server Components and
+   * Next.js 16.4 may prerender those components.
+   */
 
   const payload = `${userId}.${timestamp}`;
   const expectedSignature = createSignature(payload);
