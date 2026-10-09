@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
+import CompanyLogo from "./CompanyLogo";
 
 type NavItem = {
   label: string;
@@ -23,7 +24,11 @@ const billingItems: NavItem[] = [
 
 const settingsItems: NavItem[] = [
   { label: "Services", href: "/settings/services", icon: "◇" },
-  { label: "Company Settings", href: "/settings/company", icon: "⚙" },
+  {
+    label: "Company Settings",
+    href: "/settings/company",
+    icon: "⚙",
+  },
   { label: "Audit Logs", href: "/audit-logs", icon: "≡" },
 ];
 
@@ -33,7 +38,10 @@ function isActive(pathname: string, href: string) {
   }
 
   if (href === "/quotations") {
-    return pathname === "/quotations" || pathname.startsWith("/quotations/");
+    return (
+      pathname === "/quotations" ||
+      pathname.startsWith("/quotations/")
+    );
   }
 
   return pathname === href || pathname.startsWith(`${href}/`);
@@ -48,7 +56,7 @@ export default function AppShell({
   const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);
 
-  // Login should remain a clean full-screen page.
+  // Keep the login page full-screen without the application navigation.
   if (pathname === "/login") {
     return <>{children}</>;
   }
@@ -58,6 +66,7 @@ export default function AppShell({
 
     try {
       setLoggingOut(true);
+
       await fetch("/api/auth/logout", {
         method: "POST",
       });
@@ -76,14 +85,13 @@ export default function AppShell({
         {/* Brand */}
         <div className="shrink-0 border-b border-white/10 px-6 py-6">
           <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#C9A227] text-lg font-black text-[#0A4F44] shadow-sm">
-              S
-            </div>
+            <CompanyLogo variant="nav" />
 
             <div className="min-w-0">
               <p className="truncate text-[10px] font-bold uppercase tracking-[0.22em] text-[#C9A227]">
                 Saudi Sales
               </p>
+
               <h1 className="mt-1 truncate text-base font-black">
                 Quotation System
               </h1>
@@ -94,13 +102,14 @@ export default function AppShell({
             <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/40">
               Application
             </p>
+
             <p className="mt-1 text-xs font-semibold text-white/75">
               Sales • Quotations • Billing
             </p>
           </div>
         </div>
 
-        {/* Navigation */}
+        {/* NAVIGATION */}
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5">
           <p className="px-3 pb-2 text-[10px] font-bold uppercase tracking-[0.18em] text-white/40">
             Main Menu
@@ -131,6 +140,7 @@ export default function AppShell({
                   >
                     {item.icon}
                   </span>
+
                   <span className="truncate">{item.label}</span>
                 </Link>
               );
@@ -166,6 +176,7 @@ export default function AppShell({
                   >
                     {item.icon}
                   </span>
+
                   <span className="truncate">{item.label}</span>
                 </Link>
               );
@@ -173,7 +184,7 @@ export default function AppShell({
           </nav>
 
           <p className="px-3 pb-2 pt-7 text-[10px] font-bold uppercase tracking-[0.18em] text-white/40">
-            Settings & Control
+            Settings &amp; Control
           </p>
 
           <nav className="space-y-1">
@@ -201,6 +212,7 @@ export default function AppShell({
                   >
                     {item.icon}
                   </span>
+
                   <span className="truncate">{item.label}</span>
                 </Link>
               );
@@ -211,16 +223,18 @@ export default function AppShell({
             <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#C9A227]">
               Billing Flow
             </p>
+
             <p className="mt-2 text-xs leading-5 text-white/60">
               Quotation → Invoice → Payment
             </p>
+
             <p className="mt-1 text-[11px] leading-5 text-white/40">
               Payments and installments are recorded against invoices.
             </p>
           </div>
         </div>
 
-        {/* Footer */}
+        {/* FOOTER */}
         <div className="shrink-0 border-t border-white/10 p-4">
           <button
             type="button"
@@ -236,14 +250,17 @@ export default function AppShell({
       {/* MOBILE TOP BAR */}
       <div className="sticky top-0 z-30 border-b border-[#E4E7EC] bg-white/95 backdrop-blur lg:hidden print:hidden">
         <div className="flex items-center justify-between gap-3 px-4 py-3">
-          <Link href="/dashboard" className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#0F6B5B] text-sm font-black text-white">
-              S
-            </div>
+          <Link
+            href="/dashboard"
+            className="flex items-center gap-3"
+          >
+            <CompanyLogo variant="mobile" />
+
             <div>
               <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-[#C9A227]">
                 Saudi Sales
               </p>
+
               <p className="text-xs font-black text-[#1F2933]">
                 Quotation System
               </p>
@@ -262,24 +279,26 @@ export default function AppShell({
 
         <div className="overflow-x-auto border-t border-[#E4E7EC] px-3 py-2">
           <nav className="flex min-w-max gap-2">
-            {[...mainItems, ...billingItems, ...settingsItems].map((item) => {
-              const active = isActive(pathname, item.href);
+            {[...mainItems, ...billingItems, ...settingsItems].map(
+              (item) => {
+                const active = isActive(pathname, item.href);
 
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={[
-                    "rounded-lg px-3 py-2 text-[11px] font-bold transition",
-                    active
-                      ? "bg-[#0F6B5B] text-white"
-                      : "bg-[#F7F8F6] text-[#475467]",
-                  ].join(" ")}
-                >
-                  {item.label}
-                </Link>
-              );
-            })}
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={[
+                      "rounded-lg px-3 py-2 text-[11px] font-bold transition",
+                      active
+                        ? "bg-[#0F6B5B] text-white"
+                        : "bg-[#F7F8F6] text-[#475467]",
+                    ].join(" ")}
+                  >
+                    {item.label}
+                  </Link>
+                );
+              }
+            )}
           </nav>
         </div>
       </div>

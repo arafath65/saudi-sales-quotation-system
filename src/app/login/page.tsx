@@ -9,6 +9,7 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import { gsap } from "gsap";
+import CompanyLogo from "../../components/CompanyLogo";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -231,10 +232,8 @@ export default function LoginPage() {
             <div className="absolute -right-16 -top-16 h-48 w-48 rounded-full border border-white/10" />
 
             <div className="relative z-10">
-              <div className="login-brand flex h-14 w-14 items-center justify-center rounded-2xl bg-white shadow-lg">
-                <span className="text-xl font-black text-[#0F6B5B]">
-                  I
-                </span>
+              <div className="login-brand">
+                <CompanyLogo variant="login" />
               </div>
 
               <h1 className="login-title mt-8 text-3xl font-bold leading-[1.08] tracking-tight xl:text-4xl">
@@ -267,10 +266,8 @@ export default function LoginPage() {
             <div className="w-full max-w-md">
               {/* Mobile brand */}
               <div className="mb-5 lg:hidden">
-                <div className="login-brand flex h-12 w-12 items-center justify-center rounded-xl bg-[#0F6B5B] shadow-md">
-                  <span className="text-lg font-black text-white">
-                    I
-                  </span>
+                <div className="login-brand">
+                  <CompanyLogo variant="mobile" />
                 </div>
               </div>
 
