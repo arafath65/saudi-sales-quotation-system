@@ -1,7 +1,7 @@
-
 "use client";
 
-import { useEffect, useState } from "react";
+import Image from "next/image";
+import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 
 type QuotationItem = {
@@ -18,8 +18,14 @@ type Quotation = {
   id: number;
   quotationNo: string;
   quotationDate: string;
+  customerId?: number;
   customerName: string;
   customerMobile: string;
+  customerIqamaNo?: string | null;
+  customer?: {
+    id?: number;
+    iqamaNo?: string | null;
+  } | null;
   customerWhatsapp: string | null;
   customerEmail: string | null;
   customerAddress: string | null;
@@ -45,58 +51,155 @@ type Company = {
 function logoUrl(path: string | null) {
   if (!path) return null;
 
-  return `/api/company-settings/logo/${encodeURIComponent(
-    path
-  )}`;
+  return `/api/company-settings/logo/${encodeURIComponent(path)}`;
+}
+
+function money(value: string | number | null | undefined) {
+  const amount = Number(value ?? 0);
+
+  if (!Number.isFinite(amount)) {
+    return "0.00";
+  }
+
+  return new Intl.NumberFormat("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amount);
 }
 
 export default function QuotationPreviewPage() {
-  const params = useParams();
+  const params = useParams<{ id: string }>();
+  const quotationId = String(params.id);
   const router = useRouter();
 
-  const [quotation, setQuotation] =
-    useState<Quotation | null>(null);
-
-  const [company, setCompany] =
-    useState<Company | null>(null);
-
+  const [quotation, setQuotation] = useState<Quotation | null>(null);
+  const [company, setCompany] = useState<Company | null>(null);
   const [loading, setLoading] = useState(true);
+  const [invoiceLoading, setInvoiceLoading] = useState(false);
   const [error, setError] = useState("");
+  const [invoiceError, setInvoiceError] = useState("");
 
-  useEffect(() => {
-    loadQuotation();
-  }, []);
-
-  async function loadQuotation() {
+  const loadQuotation = useCallback(async () => {
     try {
-      const response = await fetch(
-        `/api/quotations/${params.id}`,
-        {
-          cache: "no-store",
-        }
-      );
+      const response = await fetch(`/api/quotations/${quotationId}`, {
+        cache: "no-store",
+      });
 
       const data = await response.json();
 
       if (!response.ok || !data.success) {
-        throw new Error(
-          data.message ??
-            "Unable to load quotation."
-        );
+        throw new Error(data.message ?? "Unable to load quotation.");
       }
 
-      setQuotation(data.quotation);
+      let customerIqamaNo: string | null =
+        data.quotation.customerIqamaNo ??
+        data.quotation.customer?.iqamaNo ??
+        null;
+
+      const customerId =
+        data.quotation.customerId ?? data.quotation.customer?.id;
+
+      if (!customerIqamaNo && customerId) {
+        try {
+          const customerResponse = await fetch(
+            `/api/customers/${customerId}`,
+            { cache: "no-store" }
+          );
+
+          const customerData = await customerResponse.json();
+
+          if (customerResponse.ok && customerData.success) {
+            customerIqamaNo = customerData.customer?.iqamaNo ?? null;
+          }
+        } catch (customerError) {
+          console.error("Unable to load customer Iqama:", customerError);
+        }
+      }
+
+      setQuotation({
+        ...data.quotation,
+        customerIqamaNo,
+      });
+
       setCompany(data.company);
+      setError("");
     } catch (err) {
       console.error(err);
 
       setError(
-        err instanceof Error
-          ? err.message
-          : "Unable to load quotation."
+        err instanceof Error ? err.message : "Unable to load quotation."
       );
     } finally {
       setLoading(false);
+    }
+  }, [quotationId]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void loadQuotation();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [loadQuotation]);
+
+  async function createInvoice() {
+    if (!quotation) return;
+
+    try {
+      setInvoiceLoading(true);
+      setInvoiceError("");
+
+      const response = await fetch("/api/invoices", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          quotationId: quotation.id,
+        }),
+      });
+
+      const text = await response.text();
+
+      let data: {
+        success?: boolean;
+        message?: string;
+        invoice?: {
+          id?: number;
+          invoiceNo?: string;
+        };
+      } = {};
+
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        throw new Error(
+          `Invoice API returned an invalid response (HTTP ${response.status}).`
+        );
+      }
+
+      if (response.ok && data.success && data.invoice?.id) {
+        router.push(`/invoices/${data.invoice.id}`);
+        return;
+      }
+
+      if (response.status === 409 && data.invoice?.id) {
+        router.push(`/invoices/${data.invoice.id}`);
+        return;
+      }
+
+      throw new Error(
+        data.message ||
+          `Unable to create invoice (HTTP ${response.status}).`
+      );
+    } catch (err) {
+      console.error("Create invoice error:", err);
+
+      setInvoiceError(
+        err instanceof Error ? err.message : "Unable to create invoice."
+      );
+    } finally {
+      setInvoiceLoading(false);
     }
   }
 
@@ -120,9 +223,7 @@ export default function QuotationPreviewPage() {
 
           <button
             type="button"
-            onClick={() =>
-              router.push("/quotations/new")
-            }
+            onClick={() => router.push("/quotations/new")}
             className="mt-5 rounded-xl bg-[#0F6B5B] px-5 py-3 text-sm font-bold text-white"
           >
             Create New Quotation
@@ -139,8 +240,27 @@ export default function QuotationPreviewPage() {
   return (
     <>
       <style jsx global>{`
+        @page {
+          size: A4 portrait;
+          margin: 0;
+        }
+
         @media print {
+          html,
           body {
+            width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: white !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+
+          main {
+            width: 100% !important;
+            min-height: 0 !important;
+            margin: 0 !important;
+            padding: 8mm !important;
             background: white !important;
           }
 
@@ -149,25 +269,107 @@ export default function QuotationPreviewPage() {
           }
 
           .quotation-page {
+            width: 100% !important;
+            max-width: none !important;
+            margin: 0 !important;
+            overflow: visible !important;
             box-shadow: none !important;
             border: none !important;
-            max-width: none !important;
+            border-radius: 0 !important;
+          }
+
+          .quotation-page header {
+            padding: 5mm 0 6mm !important;
+          }
+
+          .quotation-page section {
+            padding-left: 0 !important;
+            padding-right: 0 !important;
+          }
+
+          .quotation-page section > div {
+            max-width: 100% !important;
+          }
+
+          .quotation-page table {
+            width: 100% !important;
+            max-width: 100% !important;
+            table-layout: fixed !important;
+            border-collapse: collapse !important;
+          }
+
+          .quotation-page th,
+          .quotation-page td {
+            padding: 8px 5px !important;
+            vertical-align: top !important;
+            overflow-wrap: anywhere;
+          }
+
+          .quotation-page th:nth-child(1),
+          .quotation-page td:nth-child(1) {
+            width: 36% !important;
+          }
+
+          .quotation-page th:nth-child(2),
+          .quotation-page td:nth-child(2) {
+            width: 8% !important;
+          }
+
+          .quotation-page th:nth-child(3),
+          .quotation-page td:nth-child(3) {
+            width: 19% !important;
+          }
+
+          .quotation-page th:nth-child(4),
+          .quotation-page td:nth-child(4) {
+            width: 18% !important;
+          }
+
+          .quotation-page th:nth-child(5),
+          .quotation-page td:nth-child(5) {
+            width: 19% !important;
+          }
+
+          .quotation-page th:nth-child(n + 2),
+          .quotation-page td:nth-child(n + 2) {
+            font-size: 9pt !important;
+          }
+
+          .quotation-page td:nth-child(2),
+          .quotation-page td:nth-child(3),
+          .quotation-page td:nth-child(4),
+          .quotation-page td:nth-child(5) {
+            white-space: nowrap !important;
+            overflow-wrap: normal !important;
+          }
+
+          .quotation-page .mt-8 {
+            margin-top: 5mm !important;
+          }
+
+          .quotation-page .p-6,
+          .quotation-page .sm\\:p-8 {
+            padding: 5mm 0 !important;
+          }
+
+          .quotation-page footer {
+            padding: 4mm 0 !important;
+          }
+
+          .quotation-page img {
+            max-height: 16mm !important;
+            max-width: 34mm !important;
+            object-fit: contain !important;
+          }
+
+          .quotation-page * {
+            break-inside: avoid;
           }
         }
       `}</style>
 
       <main className="min-h-screen bg-[#F7F8F6] p-4 sm:p-8">
         <div className="print-hidden mx-auto mb-5 flex max-w-4xl justify-end gap-3">
-          <button
-            type="button"
-            onClick={() =>
-              router.push("/quotations/new")
-            }
-            className="rounded-xl border border-[#D0D5DD] bg-white px-5 py-3 text-sm font-bold text-[#344054]"
-          >
-            New Quotation
-          </button>
-
           <button
             type="button"
             onClick={() => window.print()}
@@ -177,6 +379,12 @@ export default function QuotationPreviewPage() {
           </button>
         </div>
 
+        {invoiceError && (
+          <div className="print-hidden mx-auto mb-5 max-w-4xl rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+            {invoiceError}
+          </div>
+        )}
+
         <article className="quotation-page mx-auto max-w-4xl overflow-hidden rounded-2xl border border-[#E4E7EC] bg-white shadow-xl">
           {/* HEADER */}
           <header className="border-b-4 border-[#0F6B5B] p-6 sm:p-8">
@@ -184,33 +392,41 @@ export default function QuotationPreviewPage() {
               <div>
                 <div className="flex items-center gap-3">
                   {logo1 && (
-                    <img
+                    <Image
                       src={logo1}
                       alt="Logo 1"
-                      className="h-16 max-w-[140px] object-contain"
+                      width={140}
+                      height={64}
+                      unoptimized
+                      className="h-16 w-auto max-w-[140px] object-contain"
                     />
                   )}
 
                   {logo2 && (
-                    <img
+                    <Image
                       src={logo2}
                       alt="Logo 2"
+                      width={140}
+                      height={64}
+                      unoptimized
                       className="h-16 max-w-[140px] object-contain"
                     />
                   )}
 
                   {logo3 && (
-                    <img
+                    <Image
                       src={logo3}
                       alt="Logo 3"
+                      width={140}
+                      height={64}
+                      unoptimized
                       className="h-16 max-w-[140px] object-contain"
                     />
                   )}
                 </div>
 
                 <h1 className="mt-5 text-2xl font-black text-[#1F2933]">
-                  {company?.companyName ||
-                    "Company Name"}
+                  {company?.companyName || "Company Name"}
                 </h1>
 
                 {company?.address && (
@@ -220,17 +436,9 @@ export default function QuotationPreviewPage() {
                 )}
 
                 <div className="mt-2 space-y-1 text-xs text-[#667085]">
-                  {company?.phone && (
-                    <p>{company.phone}</p>
-                  )}
-
-                  {company?.email && (
-                    <p>{company.email}</p>
-                  )}
-
-                  {company?.website && (
-                    <p>{company.website}</p>
-                  )}
+                  {company?.phone && <p>{company.phone}</p>}
+                  {company?.email && <p>{company.email}</p>}
+                  {company?.website && <p>{company.website}</p>}
                 </div>
               </div>
 
@@ -245,9 +453,7 @@ export default function QuotationPreviewPage() {
 
                 <p className="mt-2 text-xs text-[#667085]">
                   Date:{" "}
-                  {new Date(
-                    quotation.quotationDate
-                  ).toLocaleDateString()}
+                  {new Date(quotation.quotationDate).toLocaleDateString()}
                 </p>
               </div>
             </div>
@@ -264,56 +470,40 @@ export default function QuotationPreviewPage() {
                 {quotation.customerName}
               </h2>
 
-              <div className="mt-2 grid gap-1 text-xs text-[#667085] sm:grid-cols-2">
+              <div className="mt-3 grid gap-2 text-xs text-[#667085] sm:grid-cols-2">
                 <p>
-                  Mobile:{" "}
-                  {quotation.customerMobile}
+                  <span className="font-semibold text-[#344054]">
+                    Iqama Number:
+                  </span>{" "}
+                  {quotation.customerIqamaNo || "—"}
                 </p>
 
-                {quotation.customerWhatsapp && (
-                  <p>
-                    WhatsApp:{" "}
-                    {quotation.customerWhatsapp}
-                  </p>
-                )}
-
-                {quotation.customerEmail && (
-                  <p>
-                    Email:{" "}
-                    {quotation.customerEmail}
-                  </p>
-                )}
-
-                {quotation.customerAddress && (
-                  <p className="whitespace-pre-line sm:col-span-2">
-                    Address:{" "}
-                    {quotation.customerAddress}
-                  </p>
-                )}
+                <p>
+                  <span className="font-semibold text-[#344054]">
+                    Contact Number:
+                  </span>{" "}
+                  {quotation.customerMobile || "—"}
+                </p>
               </div>
             </div>
 
             {/* ITEMS */}
             <div className="mt-8 overflow-hidden rounded-xl border border-[#E4E7EC]">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm quotation-items-table">
                 <thead className="bg-[#0F6B5B] text-white">
                   <tr>
                     <th className="px-4 py-3 text-left text-xs font-bold">
                       Service
                     </th>
-
                     <th className="px-4 py-3 text-center text-xs font-bold">
                       Qty
                     </th>
-
                     <th className="px-4 py-3 text-right text-xs font-bold">
                       Amount
                     </th>
-
                     <th className="px-4 py-3 text-right text-xs font-bold">
                       Discount
                     </th>
-
                     <th className="px-4 py-3 text-right text-xs font-bold">
                       Total
                     </th>
@@ -332,8 +522,7 @@ export default function QuotationPreviewPage() {
                         </p>
 
                         <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-[#0F6B5B]">
-                          {item.serviceType
-                            .replaceAll("_", " ")}
+                          {item.serviceType.replaceAll("_", " ")}
                         </p>
                       </td>
 
@@ -342,24 +531,15 @@ export default function QuotationPreviewPage() {
                       </td>
 
                       <td className="px-4 py-4 text-right text-[#667085]">
-                        SAR{" "}
-                        {Number(
-                          item.amount
-                        ).toFixed(2)}
+                        SAR {money(item.amount)}
                       </td>
 
                       <td className="px-4 py-4 text-right text-[#667085]">
-                        SAR{" "}
-                        {Number(
-                          item.discount
-                        ).toFixed(2)}
+                        SAR {money(item.discount)}
                       </td>
 
                       <td className="px-4 py-4 text-right font-bold text-[#1F2933]">
-                        SAR{" "}
-                        {Number(
-                          item.totalAmount
-                        ).toFixed(2)}
+                        SAR {money(item.totalAmount)}
                       </td>
                     </tr>
                   ))}
@@ -372,24 +552,12 @@ export default function QuotationPreviewPage() {
               <div className="w-full max-w-sm space-y-3">
                 <div className="flex justify-between text-sm text-[#667085]">
                   <span>Subtotal</span>
-
-                  <span>
-                    SAR{" "}
-                    {Number(
-                      quotation.subtotal
-                    ).toFixed(2)}
-                  </span>
+                  <span>SAR {money(quotation.subtotal)}</span>
                 </div>
 
                 <div className="flex justify-between text-sm text-[#667085]">
                   <span>Discount</span>
-
-                  <span>
-                    SAR{" "}
-                    {Number(
-                      quotation.discount
-                    ).toFixed(2)}
-                  </span>
+                  <span>SAR {money(quotation.discount)}</span>
                 </div>
 
                 <div className="border-t-2 border-[#0F6B5B] pt-3">
@@ -399,14 +567,41 @@ export default function QuotationPreviewPage() {
                     </span>
 
                     <span className="text-2xl font-black text-[#0F6B5B]">
-                      SAR{" "}
-                      {Number(
-                        quotation.totalAmount
-                      ).toFixed(2)}
+                      SAR {money(quotation.totalAmount)}
                     </span>
                   </div>
                 </div>
               </div>
+            </div>
+          </section>
+
+          <section className="print-hidden mx-6 mb-6 rounded-2xl border border-[#E4E7EC] bg-[#F7F8F6] p-5 sm:mx-8">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#C9A227]">
+                  Billing
+                </p>
+
+                <h3 className="mt-1 text-base font-black text-[#1F2933]">
+                  Ready to create the customer invoice?
+                </h3>
+
+                <p className="mt-1 text-xs leading-5 text-[#667085]">
+                  Payments and installments are recorded against the invoice,
+                  not against this quotation.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={createInvoice}
+                disabled={invoiceLoading}
+                className="shrink-0 rounded-xl bg-[#0A4F44] px-5 py-3 text-xs font-bold text-white hover:bg-[#0F6B5B] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {invoiceLoading
+                  ? "Opening Invoice..."
+                  : "Create / Open Invoice →"}
+              </button>
             </div>
           </section>
 

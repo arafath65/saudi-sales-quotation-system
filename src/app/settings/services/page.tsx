@@ -106,14 +106,6 @@ export default function ServiceSettingsPage() {
     loadAll();
   }, []);
 
-  useEffect(() => {
-    setRoutePage(1);
-  }, [routeSearch, routeStatus]);
-
-  useEffect(() => {
-    setVehiclePage(1);
-  }, [vehicleSearch, vehicleStatus]);
-
   useLayoutEffect(() => {
     if (!pageRef.current || loading) {
       return;
@@ -593,35 +585,20 @@ export default function ServiceSettingsPage() {
     Math.ceil(filteredVehicles.length / PAGE_SIZE)
   );
 
-  useEffect(() => {
-    if (routePage > routeTotalPages) {
-      setRoutePage(routeTotalPages);
-    }
-  }, [routePage, routeTotalPages]);
-
-  useEffect(() => {
-    if (vehiclePage > vehicleTotalPages) {
-      setVehiclePage(vehicleTotalPages);
-    }
-  }, [vehiclePage, vehicleTotalPages]);
+  const safeRoutePage = Math.min(routePage, routeTotalPages);
+const safeVehiclePage = Math.min(vehiclePage, vehicleTotalPages);
 
   const displayedRoutes = useMemo(() => {
-    const start = (routePage - 1) * PAGE_SIZE;
+  const start = (safeRoutePage - 1) * PAGE_SIZE;
 
-    return filteredRoutes.slice(
-      start,
-      start + PAGE_SIZE
-    );
-  }, [filteredRoutes, routePage]);
+  return filteredRoutes.slice(start, start + PAGE_SIZE);
+}, [filteredRoutes, safeRoutePage]);
 
-  const displayedVehicles = useMemo(() => {
-    const start = (vehiclePage - 1) * PAGE_SIZE;
+const displayedVehicles = useMemo(() => {
+  const start = (safeVehiclePage - 1) * PAGE_SIZE;
 
-    return filteredVehicles.slice(
-      start,
-      start + PAGE_SIZE
-    );
-  }, [filteredVehicles, vehiclePage]);
+  return filteredVehicles.slice(start, start + PAGE_SIZE);
+}, [filteredVehicles, safeVehiclePage]);
 
   function pagination(
     current: number,
@@ -777,20 +754,20 @@ export default function ServiceSettingsPage() {
               <div className="mt-4 flex gap-2">
                 <input
                   value={routeSearch}
-                  onChange={(event) =>
-                    setRouteSearch(event.target.value)
-                  }
+                  onChange={(event) => {
+  setRouteSearch(event.target.value);
+  setRoutePage(1);
+}}
                   placeholder="Search routes..."
                   className="min-w-0 flex-1 rounded-xl border border-[#D0D5DD] px-4 py-2.5 text-sm outline-none focus:border-[#0F6B5B] focus:ring-4 focus:ring-[#0F6B5B]/10"
                 />
 
                 <select
                   value={routeStatus}
-                  onChange={(event) =>
-                    setRouteStatus(
-                      event.target.value as StatusFilter
-                    )
-                  }
+                  onChange={(event) => {
+  setRouteStatus(event.target.value as StatusFilter);
+  setRoutePage(1);
+}}
                   className="w-32 rounded-xl border border-[#D0D5DD] bg-white px-3 py-2.5 text-xs outline-none focus:border-[#0F6B5B]"
                 >
                   <option value="ALL">All</option>
@@ -890,10 +867,10 @@ export default function ServiceSettingsPage() {
                 </p>
 
                 {pagination(
-                  routePage,
-                  routeTotalPages,
-                  setRoutePage
-                )}
+  safeRoutePage,
+  routeTotalPages,
+  setRoutePage
+)}
               </div>
             )}
           </section>
@@ -924,20 +901,20 @@ export default function ServiceSettingsPage() {
               <div className="mt-4 flex gap-2">
                 <input
                   value={vehicleSearch}
-                  onChange={(event) =>
-                    setVehicleSearch(event.target.value)
-                  }
+                  onChange={(event) => {
+  setVehicleSearch(event.target.value);
+  setVehiclePage(1);
+}}
                   placeholder="Search vehicle types..."
                   className="min-w-0 flex-1 rounded-xl border border-[#D0D5DD] px-4 py-2.5 text-sm outline-none focus:border-[#0F6B5B] focus:ring-4 focus:ring-[#0F6B5B]/10"
                 />
 
                 <select
                   value={vehicleStatus}
-                  onChange={(event) =>
-                    setVehicleStatus(
-                      event.target.value as StatusFilter
-                    )
-                  }
+                  onChange={(event) => {
+  setVehicleStatus(event.target.value as StatusFilter);
+  setVehiclePage(1);
+}}
                   className="w-32 rounded-xl border border-[#D0D5DD] bg-white px-3 py-2.5 text-xs outline-none focus:border-[#0F6B5B]"
                 >
                   <option value="ALL">All</option>
@@ -1049,10 +1026,10 @@ export default function ServiceSettingsPage() {
                 </p>
 
                 {pagination(
-                  vehiclePage,
-                  vehicleTotalPages,
-                  setVehiclePage
-                )}
+  safeVehiclePage,
+  vehicleTotalPages,
+  setVehiclePage
+)}
               </div>
             )}
           </section>

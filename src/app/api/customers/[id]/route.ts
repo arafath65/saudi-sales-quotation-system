@@ -1,352 +1,179 @@
 import { NextResponse } from "next/server";
+import { Prisma } from "@/generated/prisma/client";
 
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit";
 
 async function requireSession() {
-  const userId =
-    await getSessionUserId();
-
-  if (!userId) {
-    return null;
-  }
+  const userId = await getSessionUserId();
+  if (!userId) return null;
 
   return prisma.user.findUnique({
-    where: {
-      id: userId,
-    },
-    select: {
-      id: true,
-      role: true,
-      isActive: true,
-    },
+    where: { id: userId },
+    select: { id: true, role: true, isActive: true },
   });
 }
 
-function cleanString(
-  value: unknown
-) {
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  const trimmed =
-    value.trim();
-
+function cleanString(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
   return trimmed || null;
 }
 
-async function parseId(
-  params: Promise<{
-    id: string;
-  }>
-) {
-  const { id } =
-    await params;
+type RouteContext = {
+  params: Promise<{ id: string }>;
+};
 
-  const parsed =
-    Number(id);
-
-  if (
-    !Number.isInteger(parsed) ||
-    parsed <= 0
-  ) {
-    return null;
-  }
-
-  return parsed;
-}
-
-export async function GET(
-  _request: Request,
-  {
-    params,
-  }: {
-    params: Promise<{
-      id: string;
-    }>;
-  }
-) {
+export async function GET(_request: Request, context: RouteContext) {
   try {
-    const user =
-      await requireSession();
-
+    const user = await requireSession();
     if (!user || !user.isActive) {
       return NextResponse.json(
-        {
-          success: false,
-          message:
-            "Unauthorized.",
-        },
+        { success: false, message: "Unauthorized." },
         { status: 401 }
       );
     }
 
-    const id =
-      await parseId(params);
-
-    if (!id) {
+    const { id: idParam } = await context.params;
+    const id = Number(idParam);
+    if (!Number.isInteger(id) || id <= 0) {
       return NextResponse.json(
-        {
-          success: false,
-          message:
-            "Invalid customer ID.",
-        },
+        { success: false, message: "Invalid customer ID." },
         { status: 400 }
       );
     }
 
-    const customer =
-      await prisma.customer.findUnique({
-        where: {
-          id,
-        },
-      });
-
+    const customer = await prisma.customer.findUnique({ where: { id } });
     if (!customer) {
       return NextResponse.json(
-        {
-          success: false,
-          message:
-            "Customer not found.",
-        },
+        { success: false, message: "Customer not found." },
         { status: 404 }
       );
     }
 
-    await writeAuditLog({
-      userId: user.id,
-      module: "CUSTOMER",
-      action: "VIEW",
-      entity: "Customer",
-      entityId: String(
-        customer.id
-      ),
-      description:
-        `Viewed customer ${customer.name}.`,
-      metadata: {
-        customerCode:
-          customer.customerCode,
-      },
-    });
-
-    return NextResponse.json({
-      success: true,
-      customer,
-    });
+    return NextResponse.json({ success: true, customer });
   } catch (error) {
-    console.error(
-      "Customer GET error:",
-      error
-    );
-
+    console.error("Customer GET error:", error);
     return NextResponse.json(
-      {
-        success: false,
-        message:
-          "Unable to load customer.",
-      },
+      { success: false, message: "Unable to load customer." },
       { status: 500 }
     );
   }
 }
 
-export async function PATCH(
-  request: Request,
-  {
-    params,
-  }: {
-    params: Promise<{
-      id: string;
-    }>;
-  }
-) {
+export async function PATCH(request: Request, context: RouteContext) {
   try {
-    const user =
-      await requireSession();
-
+    const user = await requireSession();
     if (!user || !user.isActive) {
       return NextResponse.json(
-        {
-          success: false,
-          message:
-            "Unauthorized.",
-        },
+        { success: false, message: "Unauthorized." },
         { status: 401 }
       );
     }
 
-    const id =
-      await parseId(params);
-
-    if (!id) {
+    const { id: idParam } = await context.params;
+    const id = Number(idParam);
+    if (!Number.isInteger(id) || id <= 0) {
       return NextResponse.json(
-        {
-          success: false,
-          message:
-            "Invalid customer ID.",
-        },
+        { success: false, message: "Invalid customer ID." },
         { status: 400 }
       );
     }
 
-    const existing =
-      await prisma.customer.findUnique({
-        where: {
-          id,
-        },
-      });
+    let body: Record<string, unknown>;
+    try {
+      body = (await request.json()) as Record<string, unknown>;
+    } catch {
+      return NextResponse.json(
+        { success: false, message: "Invalid JSON request body." },
+        { status: 400 }
+      );
+    }
 
+    const existing = await prisma.customer.findUnique({ where: { id } });
     if (!existing) {
       return NextResponse.json(
-        {
-          success: false,
-          message:
-            "Customer not found.",
-        },
+        { success: false, message: "Customer not found." },
         { status: 404 }
       );
     }
 
-    const body =
-      await request.json();
+    const data: Prisma.CustomerUpdateInput = {};
 
-    const name =
-      cleanString(body.name);
+    if ("name" in body) {
+      const name = cleanString(body.name);
+      if (!name) {
+        return NextResponse.json(
+          { success: false, message: "Customer name is required." },
+          { status: 400 }
+        );
+      }
+      data.name = name;
+    }
 
-    const mobile =
-      cleanString(body.mobile);
+    if ("mobile" in body) {
+      const mobile = cleanString(body.mobile);
+      if (!mobile) {
+        return NextResponse.json(
+          { success: false, message: "Contact number is required." },
+          { status: 400 }
+        );
+      }
+      data.mobile = mobile;
+    }
 
-    const whatsapp =
-      cleanString(body.whatsapp);
+    if ("iqamaNo" in body) data.iqamaNo = cleanString(body.iqamaNo);
+    if ("whatsapp" in body) data.whatsapp = cleanString(body.whatsapp);
+    if ("nationality" in body) data.nationality = cleanString(body.nationality);
+    if ("notes" in body) data.notes = cleanString(body.notes);
 
-    const email =
-      cleanString(body.email);
+    if ("isActive" in body) {
+      if (typeof body.isActive !== "boolean") {
+        return NextResponse.json(
+          { success: false, message: "isActive must be true or false." },
+          { status: 400 }
+        );
+      }
+      data.isActive = body.isActive;
+    }
 
-    const address =
-      cleanString(body.address);
-
-    const nationality =
-      cleanString(
-        body.nationality
-      );
-
-    const passportNo =
-      cleanString(
-        body.passportNo
-      );
-
-    const notes =
-      cleanString(body.notes);
-
-    const isActive =
-      typeof body.isActive ===
-      "boolean"
-        ? body.isActive
-        : existing.isActive;
-
-    if (!name) {
+    if (Object.keys(data).length === 0) {
       return NextResponse.json(
-        {
-          success: false,
-          message:
-            "Customer name is required.",
-        },
+        { success: false, message: "No customer changes were supplied." },
         { status: 400 }
       );
     }
 
-    if (!mobile) {
-      return NextResponse.json(
-        {
-          success: false,
-          message:
-            "Mobile number is required.",
-        },
-        { status: 400 }
-      );
-    }
+    const customer = await prisma.customer.update({ where: { id }, data });
 
-    if (
-      email &&
-      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
-        email
-      )
-    ) {
-      return NextResponse.json(
-        {
-          success: false,
-          message:
-            "Please enter a valid email address.",
-        },
-        { status: 400 }
-      );
-    }
-
-    const customer =
-      await prisma.customer.update({
-        where: {
-          id,
-        },
-        data: {
-          name,
-          mobile,
-          whatsapp,
-          email,
-          address,
-          nationality,
-          passportNo,
-          notes,
-          isActive,
-        },
-      });
+    const changedFields = Object.keys(data);
+    const statusOnly = changedFields.length === 1 && changedFields[0] === "isActive";
 
     await writeAuditLog({
       userId: user.id,
       module: "CUSTOMER",
-      action:
-        existing.isActive !==
-        customer.isActive
-          ? customer.isActive
-            ? "ACTIVATE"
-            : "DEACTIVATE"
-          : "UPDATE",
+      action: statusOnly ? (customer.isActive ? "ACTIVATE" : "DEACTIVATE") : "UPDATE",
       entity: "Customer",
-      entityId: String(
-        customer.id
-      ),
-      description:
-        existing.isActive !==
-        customer.isActive
-          ? `${customer.isActive ? "Activated" : "Deactivated"} customer ${customer.name}.`
-          : `Updated customer ${customer.name}.`,
+      entityId: String(customer.id),
+      description: statusOnly
+        ? `${customer.isActive ? "Activated" : "Deactivated"} customer ${customer.name}.`
+        : `Updated customer ${customer.name}.`,
       metadata: {
-        customerCode:
-          customer.customerCode,
-        isActive:
-          customer.isActive,
+        changedFields,
+        customerCode: customer.customerCode,
       },
     });
 
     return NextResponse.json({
       success: true,
-      message:
-        "Customer updated successfully.",
+      message: statusOnly ? "Customer status updated successfully." : "Customer updated successfully.",
       customer,
     });
   } catch (error) {
-    console.error(
-      "Customer PATCH error:",
-      error
-    );
-
+    console.error("Customer PATCH error:", error);
     return NextResponse.json(
-      {
-        success: false,
-        message:
-          "Unable to update customer.",
-      },
+      { success: false, message: "Unable to update customer." },
       { status: 500 }
     );
   }

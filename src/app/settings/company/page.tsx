@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
+import Image from "next/image";
 import { gsap } from "gsap";
 
 type CompanySettings = {
@@ -522,22 +523,22 @@ export default function CompanySettingsPage() {
 
                       <div className="mt-4 flex min-h-32 items-center justify-center overflow-hidden rounded-xl border border-dashed border-[#D0D5DD] bg-white">
                         {preview ? (
-                          <img
-                            src={preview}
-                            alt={`Company logo ${logo.slot}`}
-                            className="max-h-28 max-w-[85%] object-contain"
-                          />
-                        ) : (
-                          <div className="text-center">
-                            <div className="text-3xl font-light text-[#C5CBD3]">
-                              +
-                            </div>
-
-                            <p className="mt-1 text-xs text-[#98A2B3]">
-                              No logo uploaded
-                            </p>
-                          </div>
-                        )}
+  <Image
+    src={preview}
+    alt={`Company logo ${logo.slot}`}
+    width={320}
+    height={160}
+    unoptimized
+    className="max-h-28 max-w-[85%] object-contain"
+  />
+) : (
+  <div className="text-center">
+    <div className="text-3xl font-light text-[#C5CBD3]">+</div>
+    <p className="mt-1 text-xs text-[#98A2B3]">
+      No logo uploaded
+    </p>
+  </div>
+)}
                       </div>
 
                       <div className="mt-4 flex gap-2">

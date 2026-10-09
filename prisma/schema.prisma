@@ -86,6 +86,7 @@ model Customer {
   id           Int     @id @default(autoincrement())
   customerCode String  @unique @db.VarChar(50)
   name         String  @db.VarChar(150)
+  iqamaNo      String? @db.VarChar(100)
   mobile       String  @db.VarChar(50)
   whatsapp     String? @db.VarChar(50)
   email        String? @db.VarChar(150)
@@ -101,6 +102,7 @@ model Customer {
   updatedAt DateTime @updatedAt
 
   @@index([name])
+  @@index([iqamaNo])
   @@index([mobile])
   @@index([passportNo])
   @@index([isActive])
@@ -112,6 +114,7 @@ model Route {
   isActive Boolean @default(true)
 
   quotationItems QuotationItem[]
+  invoiceItems   InvoiceItem[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -126,6 +129,7 @@ model VehicleType {
   isActive  Boolean @default(true)
 
   quotationItems QuotationItem[]
+  invoiceItems   InvoiceItem[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -236,9 +240,10 @@ model Invoice {
 
   createdById Int
 
-  quotation Quotation @relation(fields: [quotationId], references: [id], onDelete: Restrict)
-  createdBy User      @relation(fields: [createdById], references: [id])
+  quotation Quotation     @relation(fields: [quotationId], references: [id], onDelete: Restrict)
+  createdBy User          @relation(fields: [createdById], references: [id])
   payments  Payment[]
+  items     InvoiceItem[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -247,6 +252,46 @@ model Invoice {
   @@index([invoiceDate])
   @@index([status])
   @@index([createdById])
+}
+
+model InvoiceItem {
+  id        Int @id @default(autoincrement())
+  invoiceId Int
+
+  serviceType ServiceType
+  description String      @db.Text
+
+  visaType VisaType?
+
+  hotelName String?    @db.VarChar(200)
+  paxCount  Int?
+  acType    AcType?
+  boardType BoardType?
+
+  ticketType TicketType?
+
+  routeId       Int?
+  vehicleTypeId Int?
+
+  amount      Decimal @db.Decimal(12, 2)
+  quantity    Decimal @default(1) @db.Decimal(10, 2)
+  discount    Decimal @default(0) @db.Decimal(12, 2)
+  totalAmount Decimal @db.Decimal(12, 2)
+
+  sortOrder Int @default(0)
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  route       Route?       @relation(fields: [routeId], references: [id], onDelete: Restrict)
+  vehicleType VehicleType? @relation(fields: [vehicleTypeId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([invoiceId])
+  @@index([serviceType])
+  @@index([routeId])
+  @@index([vehicleTypeId])
 }
 
 model Payment {
