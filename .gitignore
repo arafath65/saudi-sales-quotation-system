@@ -43,3 +43,15 @@ yarn-error.log*
 next-env.d.ts
 
 /src/generated/prisma
+
+# Generated Next.js build
+/.next/
+/out/
+/build/
+
+# Generated Electron desktop runtime and installer
+/desktop-runtime/
+/release/
+
+# Dependencies
+/node_modules/

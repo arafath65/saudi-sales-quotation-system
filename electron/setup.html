@@ -1,0 +1,386 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  />
+  <title>Saudi Sales Quotation System — Setup</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 26px;
+      background: #f7f8f6;
+      color: #1f2933;
+      font-family: "Segoe UI", Arial, sans-serif;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 540px;
+      margin: 0 auto;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 22px;
+    }
+
+    .logo {
+      width: 58px;
+      height: 58px;
+      padding: 5px;
+      border: 1px solid #e4e7ec;
+      border-radius: 14px;
+      background: white;
+      object-fit: contain;
+    }
+
+    .brand-name {
+      margin: 0;
+      color: #0f6b5b;
+      font-size: 19px;
+      font-weight: 800;
+    }
+
+    .brand-subtitle {
+      margin: 4px 0 0;
+      color: #667085;
+      font-size: 12px;
+    }
+
+    .card {
+      padding: 25px;
+      border: 1px solid #e4e7ec;
+      border-radius: 20px;
+      background: white;
+      box-shadow: 0 12px 35px rgba(15, 107, 91, 0.08);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 23px;
+      letter-spacing: -0.5px;
+    }
+
+    .description {
+      margin: 9px 0 22px;
+      color: #667085;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    label {
+      display: block;
+      margin: 14px 0 6px;
+      color: #344054;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    input {
+      display: block;
+      width: 100%;
+      padding: 11px 12px;
+      border: 1px solid #d0d5dd;
+      border-radius: 10px;
+      outline: none;
+      background: white;
+      color: #1f2933;
+      font: inherit;
+      font-size: 13px;
+    }
+
+    input:focus {
+      border-color: #0f6b5b;
+      box-shadow: 0 0 0 3px rgba(15, 107, 91, 0.1);
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 140px;
+      gap: 12px;
+    }
+
+    .note {
+      margin: 17px 0 0;
+      padding: 11px 12px;
+      border-radius: 10px;
+      background: #f7f8f6;
+      color: #667085;
+      font-size: 11px;
+      line-height: 1.6;
+    }
+
+    .status {
+      display: none;
+      margin-top: 16px;
+      padding: 12px;
+      border-radius: 10px;
+      font-size: 12px;
+      line-height: 1.5;
+      overflow-wrap: anywhere;
+    }
+
+    .status.error {
+      display: block;
+      border: 1px solid #fecaca;
+      background: #fef2f2;
+      color: #b91c1c;
+    }
+
+    .status.success {
+      display: block;
+      border: 1px solid #bbf7d0;
+      background: #f0fdf4;
+      color: #166534;
+    }
+
+    button {
+      width: 100%;
+      margin-top: 20px;
+      padding: 13px;
+      border: 0;
+      border-radius: 11px;
+      background: #0f6b5b;
+      color: white;
+      font-size: 13px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #0a4f44;
+    }
+
+    button:disabled {
+      opacity: 0.55;
+      cursor: wait;
+    }
+
+    .path {
+      margin-top: 18px;
+      color: #98a2b3;
+      font-size: 10px;
+      line-height: 1.5;
+      overflow-wrap: anywhere;
+    }
+
+    @media (max-width: 480px) {
+      body {
+        padding: 12px;
+      }
+
+      .card {
+        padding: 19px;
+      }
+
+      .row {
+        grid-template-columns: 1fr 110px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <main class="container">
+    <header class="brand">
+      <img
+        class="logo"
+        src="./logo-source.png"
+        alt="Company logo"
+        onerror="this.style.display='none'"
+      />
+
+      <div>
+        <p class="brand-name">Saudi Sales</p>
+        <p class="brand-subtitle">Quotation &amp; Billing System</p>
+      </div>
+    </header>
+
+    <section class="card">
+      <h1>Database Setup</h1>
+
+      <p class="description">
+        Configure your MySQL connection to connect the application
+        to your existing quotation database.
+      </p>
+
+      <form id="databaseForm">
+        <div class="row">
+          <div>
+            <label for="host">Database Host / IP Address</label>
+            <input
+              id="host"
+              name="host"
+              placeholder="127.0.0.1"
+              required
+            />
+          </div>
+
+          <div>
+            <label for="port">Port</label>
+            <input
+              id="port"
+              name="port"
+              type="number"
+              min="1"
+              max="65535"
+              placeholder="3306"
+              required
+            />
+          </div>
+        </div>
+
+        <label for="database">Database Name</label>
+        <input
+          id="database"
+          name="database"
+          placeholder="Your existing database name"
+          required
+        />
+
+        <label for="username">Database Username</label>
+        <input
+          id="username"
+          name="username"
+          placeholder="root"
+          autocomplete="username"
+          required
+        />
+
+        <label for="password">Database Password</label>
+        <input
+          id="password"
+          name="password"
+          type="password"
+          autocomplete="current-password"
+          placeholder="Enter your database password"
+        />
+
+        <p class="note">
+          The database server must already be running, and the
+          database and its tables must already exist. This form
+          saves connection settings; it does not install MySQL
+          or create the database.
+        </p>
+
+        <div id="status" class="status" role="status"></div>
+
+        <button id="saveButton" type="submit">
+          Save &amp; Test Connection
+        </button>
+      </form>
+
+      <div class="path">
+        Configuration file:
+        <div id="configPath">Loading...</div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const form = document.getElementById("databaseForm");
+    const button = document.getElementById("saveButton");
+    const statusBox = document.getElementById("status");
+
+    function setStatus(message, type) {
+      statusBox.textContent = message;
+      statusBox.className = `status ${type}`;
+    }
+
+    function fillForm(config) {
+      document.getElementById("host").value =
+        config.host || "127.0.0.1";
+
+      document.getElementById("port").value =
+        config.port || "3306";
+
+      document.getElementById("database").value =
+        config.database || "";
+
+      document.getElementById("username").value =
+        config.username || "root";
+
+      document.getElementById("password").value =
+        config.password || "";
+    }
+
+    async function initialize() {
+      try {
+        const data =
+          await window.databaseSetup.getInitialData();
+
+        fillForm(data.config || {});
+
+        document.getElementById("configPath").textContent =
+          data.configPath || "";
+
+        if (data.error) {
+          setStatus(
+            `Unable to connect using the saved settings. ${data.error}`,
+            "error"
+          );
+        }
+      } catch (error) {
+        setStatus(
+          "Unable to load the setup form. Please restart the application.",
+          "error"
+        );
+      }
+    }
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+
+      if (!form.reportValidity()) {
+        return;
+      }
+
+      button.disabled = true;
+      button.textContent = "Testing database connection...";
+      statusBox.className = "status";
+
+      const config = {
+        host: document.getElementById("host").value.trim(),
+        port: document.getElementById("port").value.trim(),
+        database: document.getElementById("database").value.trim(),
+        username: document.getElementById("username").value.trim(),
+        password: document.getElementById("password").value,
+      };
+
+      try {
+        const result =
+          await window.databaseSetup.saveAndConnect(config);
+
+        if (!result.success) {
+          setStatus(result.message, "error");
+        } else {
+          setStatus(
+            "Connection successful. Opening the application...",
+            "success"
+          );
+        }
+      } catch (error) {
+        setStatus(
+          "Unable to save or test the database configuration.",
+          "error"
+        );
+      } finally {
+        button.disabled = false;
+        button.textContent = "Save & Test Connection";
+      }
+    });
+
+    initialize();
+  </script>
+</body>
+</html>
