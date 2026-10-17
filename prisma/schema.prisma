@@ -143,8 +143,10 @@ model Quotation {
   quotationNo String @unique @db.VarChar(50)
   customerId  Int
 
-  quotationDate DateTime  @default(now())
-  validUntil    DateTime?
+  bankDetailsSnapshot     Json?
+  termsConditionsSnapshot Json?
+  quotationDate           DateTime  @default(now())
+  validUntil              DateTime?
 
   customerName        String  @db.VarChar(150)
   customerMobile      String  @db.VarChar(50)
@@ -184,22 +186,22 @@ model QuotationItem {
   serviceType ServiceType
   description String      @db.Text
 
-  visaType   VisaType?
-  hotelName  String?     @db.VarChar(200)
-  paxCount   Int?
-  acType     AcType?
-  boardType  BoardType?
-  roomType     String?
-  numberOfDays Int?
-  ticketType TicketType?
-  adultPrice     Decimal? @db.Decimal(12, 2)
-adultQuantity  Int?
-childPrice     Decimal? @db.Decimal(12, 2)
-childQuantity  Int?
-infantPrice    Decimal? @db.Decimal(12, 2)
-infantQuantity Int?
-airlineName     String?  @db.VarChar(100)
-baggageWeightKg Decimal? @db.Decimal(6, 2)
+  visaType        VisaType?
+  hotelName       String?     @db.VarChar(200)
+  paxCount        Int?
+  acType          AcType?
+  boardType       BoardType?
+  roomType        String?
+  numberOfDays    Int?
+  ticketType      TicketType?
+  adultPrice      Decimal?    @db.Decimal(12, 2)
+  adultQuantity   Int?
+  childPrice      Decimal?    @db.Decimal(12, 2)
+  childQuantity   Int?
+  infantPrice     Decimal?    @db.Decimal(12, 2)
+  infantQuantity  Int?
+  airlineName     String?     @db.VarChar(100)
+  baggageWeightKg Decimal?    @db.Decimal(6, 2)
 
   routeId       Int?
   vehicleTypeId Int?
@@ -274,20 +276,20 @@ model InvoiceItem {
 
   visaType VisaType?
 
-  hotelName String?    @db.VarChar(200)
-  paxCount  Int?
-  acType    AcType?
-  boardType BoardType?
-  roomType     String?
-  numberOfDays Int?
-  adultPrice     Decimal? @db.Decimal(12, 2)
-adultQuantity  Int?
-childPrice     Decimal? @db.Decimal(12, 2)
-childQuantity  Int?
-infantPrice    Decimal? @db.Decimal(12, 2)
-infantQuantity Int?
-airlineName     String?  @db.VarChar(100)
-baggageWeightKg Decimal? @db.Decimal(6, 2)
+  hotelName       String?    @db.VarChar(200)
+  paxCount        Int?
+  acType          AcType?
+  boardType       BoardType?
+  roomType        String?
+  numberOfDays    Int?
+  adultPrice      Decimal?   @db.Decimal(12, 2)
+  adultQuantity   Int?
+  childPrice      Decimal?   @db.Decimal(12, 2)
+  childQuantity   Int?
+  infantPrice     Decimal?   @db.Decimal(12, 2)
+  infantQuantity  Int?
+  airlineName     String?    @db.VarChar(100)
+  baggageWeightKg Decimal?   @db.Decimal(6, 2)
 
   ticketType TicketType?
 
@@ -377,7 +379,6 @@ model AuditLog {
   @@index([createdAt])
 }
 
-
 model HotelRoomType {
   id        Int      @id @default(autoincrement())
   name      String   @unique @db.VarChar(100)
@@ -406,3 +407,27 @@ model Airline {
   @@index([isActive, name])
 }
 
+model QuotationBankDetail {
+  id            Int      @id @default(autoincrement())
+  slot          Int      @unique
+  bankName      String   @default("") @db.VarChar(150)
+  accountName   String   @default("") @db.VarChar(150)
+  accountNumber String   @default("") @db.VarChar(100)
+  iban          String?  @db.VarChar(100)
+  swiftCode     String?  @db.VarChar(50)
+  branchName    String?  @db.VarChar(150)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model QuotationServiceTermsCondition {
+  id          Int      @id @default(autoincrement())
+  serviceType String   @db.VarChar(50)
+  title       String   @db.VarChar(150)
+  content     String   @db.Text
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([serviceType, isActive])
+}

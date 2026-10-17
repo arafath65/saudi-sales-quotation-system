@@ -7,6 +7,9 @@ import {
   useState,
 } from "react";
 import { useRouter } from "next/navigation";
+import QuotationBankTermsSelector, {
+  type QuotationOptionsSelection,
+} from "@/components/quotations/QuotationBankTermsSelector";
 type Customer = {
   id: number;
   customerCode: string;
@@ -263,6 +266,11 @@ export default function NewQuotationPage() {
   const [items, setItems] = useState<
     QuotationItem[]
   >([]);
+  const [quotationOptions, setQuotationOptions] =
+  useState<QuotationOptionsSelection>({
+    selectedBankIds: [],
+    termsConditionSelections: [],
+  });
   const [itemModalOpen, setItemModalOpen] =
     useState(false);
   const [draftItem, setDraftItem] =
@@ -658,6 +666,12 @@ if (validUntil < colomboDateInputValue()) {
       setError("Please add at least one service.");
       return;
     }
+    if (quotationOptions.selectedBankIds.length !== 2) {
+  setError(
+    "Please select exactly two bank accounts for this quotation."
+  );
+  return;
+}
     try {
       setSaving(true);
       setError("");
@@ -667,9 +681,21 @@ if (validUntil < colomboDateInputValue()) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          customerId: Number(selectedCustomerId),
-          validUntil,
-          items: items.map((item) => ({
+  customerId: Number(selectedCustomerId),
+  validUntil,
+
+  selectedBankIds: quotationOptions.selectedBankIds,
+
+  termsConditionSelections:
+    quotationOptions.termsConditionSelections.filter(
+      (selection) =>
+        items.some(
+          (item) =>
+            item.serviceType === selection.serviceType
+        )
+    ),
+
+  items: items.map((item) => ({
             serviceType: item.serviceType,
             visaType:
               item.serviceType === "UMRAH_VISA"
@@ -1128,6 +1154,15 @@ if (validUntil < colomboDateInputValue()) {
                 )}
               </div>
             </div>
+            <div className="mt-6">
+  <QuotationBankTermsSelector
+    serviceTypes={items.map(
+      (item) => item.serviceType
+    )}
+    value={quotationOptions}
+    onChange={setQuotationOptions}
+  />
+</div>
           </section>
           {/* SUMMARY */}
           <aside className="h-fit rounded-2xl border border-[#E4E7EC] bg-white p-6 shadow-sm lg:sticky lg:top-6">

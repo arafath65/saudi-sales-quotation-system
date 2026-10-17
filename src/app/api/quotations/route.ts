@@ -12,6 +12,11 @@ type ServiceType =
   | "AIR_TICKET"
   | "TRANSPORTATION";
 
+  type TermsConditionSelectionInput = {
+  serviceType?: unknown;
+  termsConditionId?: unknown;
+};
+
 type IncomingItem = {
   serviceType: string;
   visaType?: string;
@@ -144,6 +149,8 @@ export async function POST(request: Request) {
   customerId?: unknown;
   validUntil?: unknown;
   items?: unknown;
+  selectedBankIds?: unknown;
+  termsConditionSelections?: unknown;
 };
 
     try {
@@ -216,6 +223,193 @@ if (validUntilText < getCurrentQuotationDate()) {
         { status: 400 }
       );
     }
+
+    
+    // Require exactly two different bank accounts.
+    const selectedBankIds = Array.isArray(body.selectedBankIds)
+      ? body.selectedBankIds.map((value) => Number(value))
+      : [];
+
+    if (
+      selectedBankIds.length !== 2 ||
+      selectedBankIds.some(
+        (id) => !Number.isInteger(id) || id <= 0
+      ) ||
+      new Set(selectedBankIds).size !== 2
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "Select exactly two different bank accounts for this quotation.",
+        },
+        { status: 400 }
+      );
+    }
+
+    const selectedBanks =
+      await prisma.quotationBankDetail.findMany({
+        where: {
+          id: { in: selectedBankIds },
+        },
+      });
+
+    if (
+      selectedBanks.length !== 2 ||
+      selectedBanks.some(
+        (bank) =>
+          !bank.bankName.trim() ||
+          !bank.accountName.trim() ||
+          !bank.accountNumber.trim()
+      )
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "One or more selected bank accounts are unavailable. Refresh and select two valid accounts.",
+        },
+        { status: 400 }
+      );
+    }
+
+    // Save values, not database IDs, as historical snapshots.
+    const selectedBankSnapshots = selectedBanks
+      .sort((a, b) => a.slot - b.slot)
+      .map((bank) => ({
+        bankName: bank.bankName,
+        accountName: bank.accountName,
+        accountNumber: bank.accountNumber,
+        iban: bank.iban,
+        swiftCode: bank.swiftCode,
+        branchName: bank.branchName,
+      }));
+
+    const requestedTerms = Array.isArray(
+      body.termsConditionSelections
+    )
+      ? (
+          body.termsConditionSelections as
+            TermsConditionSelectionInput[]
+        )
+      : [];
+
+    const quotationServiceTypes = new Set(
+      incomingItems
+        .map((item) => cleanText(item?.serviceType))
+        .filter((type) => SERVICE_TYPES.has(type))
+    );
+
+    const termsSelections = requestedTerms.map(
+      (selection) => ({
+        serviceType: cleanText(selection?.serviceType),
+        termsConditionId: toNumber(
+          selection?.termsConditionId
+        ),
+      })
+    );
+
+    if (
+      termsSelections.some(
+        (selection) =>
+          !SERVICE_TYPES.has(selection.serviceType) ||
+          !quotationServiceTypes.has(selection.serviceType) ||
+          !Number.isInteger(
+            selection.termsConditionId
+          ) ||
+          selection.termsConditionId <= 0
+      ) ||
+      new Set(
+        termsSelections.map(
+          (selection) => selection.serviceType
+        )
+      ).size !== termsSelections.length
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "Select at most one valid terms template for each service included in the quotation.",
+        },
+        { status: 400 }
+      );
+    }
+
+    const selectedTerms = termsSelections.length
+      ? await prisma.quotationServiceTermsCondition.findMany({
+          where: {
+            id: {
+              in: termsSelections.map(
+                (selection) =>
+                  selection.termsConditionId
+              ),
+            },
+            isActive: true,
+          },
+        })
+      : [];
+
+    if (selectedTerms.length !== termsSelections.length) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "One or more selected Terms & Conditions templates are unavailable. Refresh and select them again.",
+        },
+        { status: 400 }
+      );
+    }
+
+    const serviceLabels: Record<string, string> = {
+      UMRAH_VISA: "Umrah Visa",
+      HOTEL_ACCOMMODATION: "Hotel Accommodation",
+      AIR_TICKET: "Air Ticket",
+      TRANSPORTATION: "Transportation",
+    };
+
+    const termsMatchServices = termsSelections.every(
+      (selection) => {
+        const term = selectedTerms.find(
+          (row) =>
+            row.id === selection.termsConditionId
+        );
+
+        return Boolean(
+          term &&
+          term.serviceType === selection.serviceType
+        );
+      }
+    );
+
+    if (!termsMatchServices) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "Each selected Terms & Conditions template must match its service type.",
+        },
+        { status: 400 }
+      );
+    }
+
+    const selectedTermsSnapshots = termsSelections.map(
+      (selection) => {
+        const term = selectedTerms.find(
+          (row) =>
+            row.id === selection.termsConditionId
+        )!;
+
+        return {
+          serviceType: term.serviceType,
+          serviceLabel:
+            serviceLabels[term.serviceType] ??
+            term.serviceType,
+          title: term.title,
+          content: term.content,
+        };
+      }
+    );
+
 
     const customer = await prisma.customer.findFirst({
       where: { id: customerId, isActive: true },
@@ -793,6 +987,8 @@ if (validUntilText < getCurrentQuotationDate()) {
           totalAmount: formatMoney(grandTotalCents / 100),
           status: "GENERATED",
           createdById: userId,
+          bankDetailsSnapshot: selectedBankSnapshots,
+          termsConditionsSnapshot: selectedTermsSnapshots,
           items: {
             create: preparedItems.map((item) => ({
               serviceType: item.serviceType,
