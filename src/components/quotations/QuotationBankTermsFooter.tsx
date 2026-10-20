@@ -90,7 +90,7 @@ export default function QuotationBankTermsFooter({
       )}
 
       {terms.length > 0 && (
-        <div className="mt-5">
+        <div className="quotation-terms-section mt-5">
           <h2 className="text-sm font-black uppercase tracking-[0.12em] text-[#0F6B5B]">
             Terms & Conditions
           </h2>

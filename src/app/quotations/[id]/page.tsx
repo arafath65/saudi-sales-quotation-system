@@ -1,8 +1,10 @@
+
 "use client";
 
 import Image from "next/image";
 import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import QuotationBankTermsFooter from "@/components/quotations/QuotationBankTermsFooter";
 
 type QuotationItem = {
   id: number;
@@ -14,12 +16,27 @@ type QuotationItem = {
   totalAmount: string;
 };
 
+type BankDetailSnapshot = {
+  bankName: string;
+  accountName: string;
+  accountNumber: string;
+  iban?: string | null;
+  swiftCode?: string | null;
+  branchName?: string | null;
+};
+
+type TermsConditionSnapshot = {
+  serviceType: string;
+  serviceLabel: string;
+  title: string;
+  content: string;
+};
+
 type Quotation = {
   id: number;
   quotationNo: string;
   quotationDate: string;
   validUntil: string | null;
-  
   customerId?: number;
   customerName: string;
   customerMobile: string;
@@ -36,6 +53,8 @@ type Quotation = {
   discount: string;
   status: string;
   items: QuotationItem[];
+  bankDetailsSnapshot: BankDetailSnapshot[] | null;
+  termsConditionsSnapshot: TermsConditionSnapshot[] | null;
 };
 
 type Company = {
@@ -244,7 +263,7 @@ export default function QuotationPreviewPage() {
       <style jsx global>{`
         @page {
           size: A4 portrait;
-          margin: 0;
+          margin: 12mm 0 0;
         }
 
         @media print {
@@ -266,6 +285,18 @@ export default function QuotationPreviewPage() {
             background: white !important;
           }
 
+          .print-header,
+  .print-footer,
+  .print-page-header,
+  .print-page-footer {
+    display: none !important;
+  }
+
+          .quotation-terms-section {
+    padding-top: 8mm !important;
+  }
+
+  
           .print-hidden {
             display: none !important;
           }
@@ -364,8 +395,81 @@ export default function QuotationPreviewPage() {
             object-fit: contain !important;
           }
 
+          /*
+           * Let the quotation flow naturally across pages.
+           * Do not force every element to remain on one page.
+           */
           .quotation-page * {
-            break-inside: avoid;
+            break-inside: auto;
+          }
+
+          /*
+           * Bank details are an independent section.
+           * Keep both account cards together when possible.
+           */
+          .quotation-bank-terms > div:first-child {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+          }
+
+          .quotation-bank-terms .grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            gap: 3mm !important;
+          }
+
+          .quotation-bank-terms .grid > div {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+          }
+
+          /*
+           * Terms & Conditions is the second section inside
+           * QuotationBankTermsFooter. Move the whole section when
+           * it cannot fit in the remaining space, when possible.
+           */
+          .quotation-bank-terms > div:nth-child(2) {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+            margin-top: 4mm !important;
+          }
+
+          .quotation-bank-terms > div:nth-child(2) > h2 {
+            break-after: avoid !important;
+            page-break-after: avoid !important;
+          }
+
+          .quotation-bank-terms > div:nth-child(2) > div > div {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+          }
+
+          /* Compact, readable bank details and terms for printing. */
+          .quotation-bank-terms {
+            color: #1f2933 !important;
+            margin-top: 4mm !important;
+            padding-top: 3mm !important;
+          }
+
+          .quotation-bank-terms h2 {
+            font-size: 10pt !important;
+          }
+
+          .quotation-bank-terms h3 {
+            font-size: 8pt !important;
+          }
+
+          .quotation-bank-terms p {
+            font-size: 7.5pt !important;
+            line-height: 1.25 !important;
+          }
+
+          .quotation-bank-terms .rounded-lg {
+            border-radius: 2px !important;
+          }
+
+          /* Reduce excess space above totals. */
+          .quotation-page .mt-6 {
+            margin-top: 3mm !important;
           }
         }
       `}</style>
@@ -400,7 +504,9 @@ export default function QuotationPreviewPage() {
                       width={140}
                       height={64}
                       unoptimized
+                      loading="eager"
                       className="h-16 w-auto max-w-[140px] object-contain"
+                      style={{ height: "64px", width: "auto" }}
                     />
                   )}
 
@@ -411,6 +517,7 @@ export default function QuotationPreviewPage() {
                       width={140}
                       height={64}
                       unoptimized
+                      loading="eager"
                       className="h-16 max-w-[140px] object-contain"
                     />
                   )}
@@ -422,6 +529,7 @@ export default function QuotationPreviewPage() {
                       width={140}
                       height={64}
                       unoptimized
+                      loading="eager"
                       className="h-16 max-w-[140px] object-contain"
                     />
                   )}
@@ -454,25 +562,25 @@ export default function QuotationPreviewPage() {
                 </p>
 
                 <p className="mt-2 text-xs text-[#667085]">
-  Date:{" "}
-  {new Date(
-    quotation.quotationDate
-  ).toLocaleDateString("en-GB")}
-</p>
+                  Date:{" "}
+                  {new Date(quotation.quotationDate).toLocaleDateString(
+                    "en-GB"
+                  )}
+                </p>
 
-{quotation.validUntil && (
-  <p className="mt-1 text-xs font-semibold text-[#344054]">
-    Valid Until:{" "}
-    {new Date(
-      `${String(quotation.validUntil).slice(0, 10)}T00:00:00`
-    ).toLocaleDateString("en-GB")}
-  </p>
-)}
+                {quotation.validUntil && (
+                  <p className="mt-1 text-xs font-semibold text-[#344054]">
+                    Valid Until:{" "}
+                    {new Date(
+                      `${String(quotation.validUntil).slice(0, 10)}T00:00:00`
+                    ).toLocaleDateString("en-GB")}
+                  </p>
+                )}
               </div>
             </div>
           </header>
 
-          {/* CUSTOMER */}
+          {/* CUSTOMER AND QUOTATION ITEMS */}
           <section className="p-6 sm:p-8">
             <div className="rounded-xl border border-[#E4E7EC] bg-[#FAFAF8] p-5">
               <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#C9A227]">
@@ -505,22 +613,19 @@ export default function QuotationPreviewPage() {
               <table className="w-full text-sm quotation-items-table">
                 <thead className="bg-[#0F6B5B] text-white">
                   <tr>
-  <th className="px-4 py-3 text-left text-xs font-bold">
-    Service
-  </th>
-
-  <th className="px-4 py-3 text-center text-xs font-bold">
-    Qty
-  </th>
-
-  <th className="px-4 py-3 text-right text-xs font-bold">
-    Amount
-  </th>
-
-  <th className="px-4 py-3 text-right text-xs font-bold">
-    Total
-  </th>
-</tr>
+                    <th className="px-4 py-3 text-left text-xs font-bold">
+                      Service
+                    </th>
+                    <th className="px-4 py-3 text-center text-xs font-bold">
+                      Qty
+                    </th>
+                    <th className="px-4 py-3 text-right text-xs font-bold">
+                      Amount
+                    </th>
+                    <th className="px-4 py-3 text-right text-xs font-bold">
+                      Total
+                    </th>
+                  </tr>
                 </thead>
 
                 <tbody>
@@ -556,7 +661,7 @@ export default function QuotationPreviewPage() {
               </table>
             </div>
 
-            {/* TOTAL */}
+            {/* TOTALS */}
             <div className="mt-6 flex justify-end">
               <div className="w-full max-w-sm space-y-3">
                 <div className="flex justify-between text-sm text-[#667085]">
@@ -584,6 +689,7 @@ export default function QuotationPreviewPage() {
             </div>
           </section>
 
+          {/* BILLING ACTION — NOT PRINTED */}
           <section className="print-hidden mx-6 mb-6 rounded-2xl border border-[#E4E7EC] bg-[#F7F8F6] p-5 sm:mx-8">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
@@ -614,6 +720,13 @@ export default function QuotationPreviewPage() {
             </div>
           </section>
 
+          {/* BANK DETAILS AND TERMS — BOTTOM OF QUOTATION */}
+          <QuotationBankTermsFooter
+            bankDetails={quotation.bankDetailsSnapshot}
+            termsConditions={quotation.termsConditionsSnapshot}
+          />
+
+          {/* COMPANY FOOTER */}
           <footer className="border-t border-[#E4E7EC] bg-[#FAFAF8] px-6 py-5 text-center sm:px-8">
             <p className="text-xs text-[#667085]">
               Thank you for your business.
