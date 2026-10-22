@@ -1,0 +1,439 @@
+"use client";
+
+import Image from "next/image";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useParams, useRouter } from "next/navigation";
+
+type Company = {
+  companyName: string;
+  address: string | null;
+  phone: string | null;
+  email: string | null;
+  website: string | null;
+  taxNumber: string | null;
+  logo1Path: string | null;
+};
+
+type TermsSnapshot = {
+  templateId?: number;
+  serviceType?: string;
+  title: string;
+  content: string;
+};
+
+type TermsOption = {
+  id: number;
+  serviceType: string;
+  title: string;
+  content: string;
+  isActive: boolean;
+};
+
+type HotelConfirmation = {
+  id: number;
+  receiptNo: string;
+  hotelConfirmationNumber: string;
+  status: "TENTATIVE" | "DEFINITE";
+  checkIn: string;
+  checkOut: string;
+  customerName: string;
+  customerMobile: string;
+  customerWhatsapp: string | null;
+  customerEmail: string | null;
+  customerAddress: string | null;
+  customerPassportNo: string | null;
+  hotelName: string;
+  roomType: string;
+  numberOfDays: number | null;
+  roomQuantity: string | number;
+  paxCount: number | null;
+  acType: string | null;
+  boardType: string | null;
+  currency: string;
+  amount: string | number;
+  discount: string | number;
+  totalAmount: string | number;
+  termsConditionsSnapshot: unknown;
+  notes: string | null;
+  quotationId: number;
+  quotationItemId: number;
+  createdAt: string;
+  updatedAt: string;
+  quotation?: {
+    id: number;
+    quotationNo: string;
+    quotationDate?: string;
+    currency: string;
+  };
+  quotationItem?: {
+    id: number;
+    description: string;
+    serviceType: string;
+  };
+  createdBy?: { id: number; name: string };
+};
+
+function logoUrl(path: string | null | undefined) {
+  if (!path) return null;
+  return `/api/company-settings/logo/${encodeURIComponent(path)}`;
+}
+
+function money(value: string | number | null | undefined) {
+  const amount = Number(value ?? 0);
+  return Number.isFinite(amount)
+    ? new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount)
+    : "0.00";
+}
+
+function dateInput(value: string | null | undefined) {
+  return value ? String(value).slice(0, 10) : "";
+}
+
+function dateLabel(value: string | null | undefined) {
+  const part = dateInput(value);
+  if (!part) return "—";
+  const parsed = new Date(`${part}T00:00:00`);
+  return Number.isNaN(parsed.getTime()) ? part : parsed.toLocaleDateString("en-GB");
+}
+
+function detailLabel(value: string | null | undefined) {
+  if (!value) return "—";
+  if (value === "AC") return "Air-conditioned";
+  if (value === "NON_AC") return "Non-air-conditioned";
+  if (value === "ROOM_ONLY") return "Room Only";
+  if (value === "BED_BREAKFAST") return "Bed & Breakfast";
+  return value.replaceAll("_", " ");
+}
+
+function parseTermsSnapshot(value: unknown): TermsSnapshot[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((row): row is TermsSnapshot =>
+    Boolean(row && typeof row === "object" && typeof (row as TermsSnapshot).title === "string" && typeof (row as TermsSnapshot).content === "string"),
+  );
+}
+
+export default function HotelConfirmationReceiptPage() {
+  const params = useParams<{ id: string }>();
+  const confirmationId = String(params.id);
+  const router = useRouter();
+
+  const [confirmation, setConfirmation] = useState<HotelConfirmation | null>(null);
+  const [company, setCompany] = useState<Company | null>(null);
+  const [termsOptions, setTermsOptions] = useState<TermsOption[]>([]);
+  const [selectedTermsIds, setSelectedTermsIds] = useState<number[]>([]);
+  const [termsDirty, setTermsDirty] = useState(false);
+  const [numberDraft, setNumberDraft] = useState("");
+  const [statusDraft, setStatusDraft] = useState<"TENTATIVE" | "DEFINITE">("TENTATIVE");
+  const [checkInDraft, setCheckInDraft] = useState("");
+  const [checkOutDraft, setCheckOutDraft] = useState("");
+  const [notesDraft, setNotesDraft] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+
+  const savedTerms = useMemo(
+    () => parseTermsSnapshot(confirmation?.termsConditionsSnapshot),
+    [confirmation?.termsConditionsSnapshot],
+  );
+
+  const loadConfirmation = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError("");
+      const response = await fetch(`/api/hotel-confirmations/${confirmationId}`, { cache: "no-store" });
+      const data = await response.json();
+      if (!response.ok || !data.success || !data.hotelConfirmation) {
+        throw new Error(data.message || "Unable to load hotel confirmation.");
+      }
+
+      const loaded = data.hotelConfirmation as HotelConfirmation;
+      setConfirmation(loaded);
+      setNumberDraft(loaded.hotelConfirmationNumber || "");
+      setStatusDraft(loaded.status);
+      setCheckInDraft(dateInput(loaded.checkIn));
+      setCheckOutDraft(dateInput(loaded.checkOut));
+      setNotesDraft(loaded.notes || "");
+      setTermsDirty(false);
+
+      const [optionsResponse, quotationResponse] = await Promise.all([
+        fetch("/api/quotation-options", { cache: "no-store" }),
+        fetch(`/api/quotations/${loaded.quotationId}`, { cache: "no-store" }),
+      ]);
+      const [optionsJson, quotationJson] = await Promise.all([
+        optionsResponse.json(),
+        quotationResponse.json(),
+      ]);
+      const activeHotelTerms: TermsOption[] =
+        optionsResponse.ok && optionsJson.success && Array.isArray(optionsJson.termsConditions)
+          ? optionsJson.termsConditions.filter((row: TermsOption) => row.isActive && row.serviceType === "HOTEL_ACCOMMODATION")
+          : [];
+      setTermsOptions(activeHotelTerms);
+
+      const snapshot = parseTermsSnapshot(loaded.termsConditionsSnapshot);
+      const snapshotIds = snapshot
+        .map((row) => Number(row.templateId))
+        .filter((id) => Number.isInteger(id) && id > 0 && activeHotelTerms.some((term) => term.id === id));
+      setSelectedTermsIds(Array.from(new Set(snapshotIds)));
+
+      if (quotationResponse.ok && quotationJson.success) {
+        setCompany(quotationJson.company ?? null);
+      } else {
+        setCompany(null);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to load hotel confirmation.");
+    } finally {
+      setLoading(false);
+    }
+  }, [confirmationId]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => void loadConfirmation(), 0);
+    return () => window.clearTimeout(timer);
+  }, [loadConfirmation]);
+
+  function toggleTerms(id: number, checked: boolean) {
+    setTermsDirty(true);
+    setSelectedTermsIds((current) =>
+      checked ? Array.from(new Set([...current, id])) : current.filter((value) => value !== id),
+    );
+  }
+
+  async function handleSave(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!confirmation) return;
+
+    if (!numberDraft.trim()) {
+      setError("The hotel's confirmation number is required.");
+      return;
+    }
+    if (!checkInDraft || !checkOutDraft || checkOutDraft <= checkInDraft) {
+      setError("Check-out date must be later than check-in date.");
+      return;
+    }
+
+    try {
+      setSaving(true);
+      setError("");
+      setMessage("");
+      const payload: Record<string, unknown> = {
+        hotelConfirmationNumber: numberDraft.trim(),
+        status: statusDraft,
+        checkIn: checkInDraft,
+        checkOut: checkOutDraft,
+        notes: notesDraft.trim(),
+      };
+      if (termsDirty) payload.termsConditionIds = selectedTermsIds;
+
+      const response = await fetch(`/api/hotel-confirmations/${confirmation.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success || !data.hotelConfirmation) {
+        throw new Error(data.message || `Unable to update confirmation (HTTP ${response.status}).`);
+      }
+
+      setConfirmation(data.hotelConfirmation as HotelConfirmation);
+      setTermsDirty(false);
+      setMessage(data.message || "Hotel confirmation updated successfully.");
+      await loadConfirmation();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to update hotel confirmation.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (loading) {
+    return <main className="min-h-screen bg-[#F7F8F6] p-6"><div className="mx-auto max-w-4xl animate-pulse rounded-2xl bg-white p-10 text-sm text-[#667085]">Loading confirmation receipt…</div></main>;
+  }
+
+  if (!confirmation) {
+    return (
+      <main className="min-h-screen bg-[#F7F8F6] p-6">
+        <div className="mx-auto max-w-xl rounded-2xl border border-red-200 bg-white p-6">
+          <p className="text-sm text-red-700">{error || "Hotel confirmation not found."}</p>
+          <button type="button" onClick={() => router.back()} className="mt-4 rounded-xl bg-[#0F6B5B] px-4 py-2.5 text-sm font-bold text-white">Go back</button>
+        </div>
+      </main>
+    );
+  }
+
+  const logo1 = logoUrl(company?.logo1Path);
+  const statusLabel = confirmation.status === "DEFINITE" ? "Definite Confirmation" : "Tentative Confirmation";
+
+  return (
+    <>
+      <style jsx global>{`
+        @page { size: A4 portrait; margin: 10mm; }
+        @media print {
+          html, body { background: #fff !important; margin: 0 !important; padding: 0 !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+          .print-hidden { display: none !important; }
+          .hotel-receipt { width: 100% !important; max-width: none !important; border: none !important; border-radius: 0 !important; box-shadow: none !important; margin: 0 !important; }
+          .hotel-receipt section { break-inside: avoid; }
+        }
+      `}</style>
+
+      <main className="min-h-screen bg-[#F7F8F6] p-4 sm:p-8">
+        <div className="print-hidden mx-auto mb-5 flex max-w-4xl flex-wrap justify-end gap-3">
+          <button type="button" onClick={() => router.push(`/quotations/${confirmation.quotationId}`)} className="rounded-xl border border-[#D0D5DD] bg-white px-4 py-2.5 text-sm font-bold text-[#344054]">Open quotation</button>
+          <button type="button" onClick={() => window.print()} className="rounded-xl bg-[#0F6B5B] px-5 py-2.5 text-sm font-bold text-white">Print / Save PDF</button>
+        </div>
+
+        <article className="hotel-receipt mx-auto max-w-4xl overflow-hidden rounded-2xl border border-[#E4E7EC] bg-white shadow-xl">
+          <header className="border-b-4 border-[#0F6B5B] p-6 sm:p-8">
+            <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                {logo1 && <Image src={logo1} alt="Company logo" width={160} height={72} unoptimized className="h-16 w-auto max-w-[160px] object-contain" />}
+                <h1 className="mt-3 text-2xl font-black text-[#1F2933]">{company?.companyName || "Company Name"}</h1>
+                {company?.address && <p className="mt-2 max-w-md whitespace-pre-line text-xs leading-5 text-[#667085]">{company.address}</p>}
+                <div className="mt-2 space-y-1 text-xs text-[#667085]">
+                  {company?.phone && <p>{company.phone}</p>}
+                  {company?.email && <p>{company.email}</p>}
+                  {company?.website && <p>{company.website}</p>}
+                  {company?.taxNumber && <p>Tax / VAT No: {company.taxNumber}</p>}
+                </div>
+              </div>
+              <div className="sm:text-right">
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-[#C9A227]">Hotel Booking</p>
+                <h2 className="mt-1 text-2xl font-black text-[#0F6B5B]">Confirmation Receipt</h2>
+                <p className="mt-2 text-sm font-black text-[#1F2933]">{confirmation.receiptNo}</p>
+                <p className="mt-1 text-xs text-[#667085]">Quotation: {confirmation.quotation?.quotationNo || `#${confirmation.quotationId}`}</p>
+                <span className={`mt-3 inline-flex rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-wider ${confirmation.status === "DEFINITE" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>{statusLabel}</span>
+              </div>
+            </div>
+          </header>
+
+          <section className="p-6 sm:p-8">
+            <div className="rounded-xl border border-[#E4E7EC] bg-[#FAFAF8] p-5">
+              <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#C9A227]">Guest / Customer Details</p>
+              <h3 className="mt-2 text-lg font-black text-[#1F2933]">{confirmation.customerName}</h3>
+              <div className="mt-3 grid gap-2 text-xs text-[#667085] sm:grid-cols-2">
+                <p><span className="font-bold text-[#344054]">Mobile: </span>{confirmation.customerMobile || "—"}</p>
+                <p><span className="font-bold text-[#344054]">WhatsApp: </span>{confirmation.customerWhatsapp || "—"}</p>
+                <p><span className="font-bold text-[#344054]">Email: </span>{confirmation.customerEmail || "—"}</p>
+                <p><span className="font-bold text-[#344054]">Passport: </span>{confirmation.customerPassportNo || "—"}</p>
+                {confirmation.customerAddress && <p className="sm:col-span-2"><span className="font-bold text-[#344054]">Address: </span>{confirmation.customerAddress}</p>}
+              </div>
+            </div>
+
+            <div className="mt-6 overflow-hidden rounded-xl border border-[#E4E7EC]">
+              <div className="bg-[#0F6B5B] px-5 py-3 text-xs font-black uppercase tracking-wider text-white">Hotel Accommodation Details</div>
+              <div className="grid gap-px bg-[#EAECF0] sm:grid-cols-2">
+                {[
+                  ["Hotel Name", confirmation.hotelName],
+                  ["Hotel Confirmation Number", confirmation.hotelConfirmationNumber],
+                  ["Room Type", confirmation.roomType],
+                  ["Room Quantity", String(Number(confirmation.roomQuantity))],
+                  ["Number of Days", confirmation.numberOfDays ? String(confirmation.numberOfDays) : "—"],
+                  ["Guests / Passengers", confirmation.paxCount ? String(confirmation.paxCount) : "—"],
+                  ["AC Type", detailLabel(confirmation.acType)],
+                  ["Board / Meal Plan", detailLabel(confirmation.boardType)],
+                  ["Check-in Date", dateLabel(confirmation.checkIn)],
+                  ["Check-out Date", dateLabel(confirmation.checkOut)],
+                ].map(([label, value]) => (
+                  <div key={label} className="bg-white p-4">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-[#667085]">{label}</p>
+                    <p className="mt-1 break-words text-sm font-bold text-[#1F2933]">{value || "—"}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-6 rounded-xl border border-[#E4E7EC] p-5">
+              <h3 className="text-sm font-black text-[#1F2933]">Booking Amount</h3>
+              <div className="mt-3 space-y-2 text-sm">
+                <div className="flex justify-between gap-3 text-[#667085]"><span>Rate / Amount</span><span>{confirmation.currency} {money(confirmation.amount)}</span></div>
+                <div className="flex justify-between gap-3 text-[#667085]"><span>Discount</span><span>{confirmation.currency} {money(confirmation.discount)}</span></div>
+                <div className="flex justify-between gap-3 border-t-2 border-[#0F6B5B] pt-3 font-black text-[#0F6B5B]"><span>Total</span><span>{confirmation.currency} {money(confirmation.totalAmount)}</span></div>
+              </div>
+            </div>
+
+            {savedTerms.length > 0 && (
+              <section className="mt-6 rounded-xl border border-[#E4E7EC] p-5">
+                <h3 className="text-sm font-black text-[#1F2933]">Hotel Terms & Conditions</h3>
+                <div className="mt-3 space-y-4">
+                  {savedTerms.map((term, index) => (
+                    <div key={`${term.templateId ?? index}-${term.title}`}>
+                      <h4 className="text-xs font-black text-[#344054]">{term.title}</h4>
+                      <p className="mt-1 whitespace-pre-line text-xs leading-5 text-[#667085]">{term.content}</p>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {confirmation.notes && (
+              <section className="mt-6 rounded-xl bg-[#FAFAF8] p-5">
+                <h3 className="text-xs font-black text-[#344054]">Notes</h3>
+                <p className="mt-2 whitespace-pre-line text-xs leading-5 text-[#667085]">{confirmation.notes}</p>
+              </section>
+            )}
+          </section>
+
+          <footer className="border-t border-[#E4E7EC] bg-[#FAFAF8] px-6 py-5 text-center sm:px-8">
+            <p className="text-xs text-[#667085]">Please present this confirmation when contacting the hotel or checking in.</p>
+            <p className="mt-1 text-[10px] text-[#98A2B3]">Generated from quotation {confirmation.quotation?.quotationNo || confirmation.quotationId}.</p>
+          </footer>
+        </article>
+
+        <section className="print-hidden mx-auto mt-6 max-w-4xl rounded-2xl border border-[#E4E7EC] bg-white p-5 shadow-sm sm:p-6">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#C9A227]">Manage Booking</p>
+            <h3 className="mt-1 text-base font-black text-[#1F2933]">Update confirmation</h3>
+            <p className="mt-1 text-xs leading-5 text-[#667085]">Change Tentative to Definite after the hotel finalizes the booking. This updates the existing receipt number rather than creating another receipt.</p>
+          </div>
+
+          {error && <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{error}</div>}
+          {message && <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">{message}</div>}
+
+          <form onSubmit={handleSave} className="mt-4 space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="block text-xs font-bold text-[#344054]">Hotel Confirmation Number
+                <input required value={numberDraft} onChange={(event) => setNumberDraft(event.target.value)} className="mt-1.5 w-full rounded-xl border border-[#D0D5DD] px-3 py-3 text-sm font-normal outline-none focus:border-[#0F6B5B]" />
+              </label>
+              <label className="block text-xs font-bold text-[#344054]">Confirmation Status
+                <select value={statusDraft} onChange={(event) => setStatusDraft(event.target.value as "TENTATIVE" | "DEFINITE")} className="mt-1.5 w-full rounded-xl border border-[#D0D5DD] bg-white px-3 py-3 text-sm font-normal outline-none focus:border-[#0F6B5B]">
+                  <option value="TENTATIVE">Tentative Confirmation</option>
+                  <option value="DEFINITE">Definite Confirmation</option>
+                </select>
+              </label>
+              <label className="block text-xs font-bold text-[#344054]">Check-in Date
+                <input type="date" required value={checkInDraft} onChange={(event) => setCheckInDraft(event.target.value)} className="mt-1.5 w-full rounded-xl border border-[#D0D5DD] px-3 py-3 text-sm font-normal outline-none focus:border-[#0F6B5B]" />
+              </label>
+              <label className="block text-xs font-bold text-[#344054]">Check-out Date
+                <input type="date" required min={checkInDraft || undefined} value={checkOutDraft} onChange={(event) => setCheckOutDraft(event.target.value)} className="mt-1.5 w-full rounded-xl border border-[#D0D5DD] px-3 py-3 text-sm font-normal outline-none focus:border-[#0F6B5B]" />
+              </label>
+            </div>
+
+            {termsOptions.length > 0 && (
+              <div className="rounded-xl border border-[#EAECF0] p-4">
+                <h4 className="text-xs font-black text-[#344054]">Replace / update Terms & Conditions</h4>
+                <p className="mt-1 text-[11px] leading-5 text-[#667085]">Only change these selections if you want to replace the saved wording on this receipt. Existing wording remains unchanged unless you change and save the selection.</p>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  {termsOptions.map((term) => (
+                    <label key={term.id} className="flex gap-2 rounded-lg bg-[#FAFAF8] p-3 text-xs text-[#344054]">
+                      <input type="checkbox" checked={selectedTermsIds.includes(term.id)} onChange={(event) => toggleTerms(term.id, event.target.checked)} className="mt-0.5 h-4 w-4 accent-[#0F6B5B]" />
+                      <span><span className="font-bold">{term.title}</span><span className="mt-1 block whitespace-pre-line text-[#667085]">{term.content}</span></span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <label className="block text-xs font-bold text-[#344054]">Notes
+              <textarea rows={3} value={notesDraft} onChange={(event) => setNotesDraft(event.target.value)} className="mt-1.5 w-full rounded-xl border border-[#D0D5DD] px-3 py-3 text-sm font-normal outline-none focus:border-[#0F6B5B]" />
+            </label>
+
+            <div className="flex justify-end">
+              <button type="submit" disabled={saving} className="rounded-xl bg-[#0F6B5B] px-5 py-3 text-sm font-bold text-white hover:bg-[#0A4F44] disabled:cursor-not-allowed disabled:opacity-50">{saving ? "Saving…" : "Save Changes"}</button>
+            </div>
+          </form>
+        </section>
+      </main>
+    </>
+  );
+}

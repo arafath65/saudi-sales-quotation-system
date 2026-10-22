@@ -50,6 +50,11 @@ enum QuotationStatus {
   EXPIRED
 }
 
+enum HotelConfirmationStatus {
+  TENTATIVE
+  DEFINITE
+}
+
 enum InvoiceStatus {
   UNPAID
   PARTIALLY_PAID
@@ -79,10 +84,11 @@ model User {
   role         UserRole @default(USER)
   isActive     Boolean  @default(true)
 
-  quotations Quotation[]
-  invoices   Invoice[]
-  payments   Payment[]
-  auditLogs  AuditLog[]
+  quotations         Quotation[]
+  invoices           Invoice[]
+  payments           Payment[]
+  auditLogs          AuditLog[]
+  hotelConfirmations HotelConfirmation[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -175,8 +181,9 @@ model Quotation {
   createdBy   User     @relation(fields: [createdById], references: [id])
   customer    Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
 
-  items   QuotationItem[]
-  invoice Invoice?
+  items              QuotationItem[]
+  hotelConfirmations HotelConfirmation[]
+  invoice            Invoice?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -224,6 +231,8 @@ model QuotationItem {
   quotation   Quotation    @relation(fields: [quotationId], references: [id], onDelete: Cascade)
   route       Route?       @relation(fields: [routeId], references: [id], onDelete: Restrict)
   vehicleType VehicleType? @relation(fields: [vehicleTypeId], references: [id], onDelete: Restrict)
+
+  hotelConfirmations HotelConfirmation[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -439,4 +448,60 @@ model QuotationServiceTermsCondition {
   updatedAt   DateTime @updatedAt
 
   @@index([serviceType, isActive])
+}
+
+model HotelConfirmation {
+  id        Int    @id @default(autoincrement())
+  receiptNo String @unique @db.VarChar(50)
+
+  // Hotel's booking confirmation/reference number.
+  hotelConfirmationNumber String @db.VarChar(100)
+
+  status HotelConfirmationStatus @default(TENTATIVE)
+
+  checkIn  DateTime @db.Date
+  checkOut DateTime @db.Date
+
+  // Customer snapshot
+  customerName       String  @db.VarChar(150)
+  customerMobile     String  @db.VarChar(50)
+  customerWhatsapp   String? @db.VarChar(50)
+  customerEmail      String? @db.VarChar(150)
+  customerAddress    String? @db.Text
+  customerPassportNo String? @db.VarChar(100)
+
+  // Hotel service snapshot
+  hotelName    String     @db.VarChar(200)
+  roomType     String     @db.VarChar(150)
+  numberOfDays Int?
+  roomQuantity Decimal    @db.Decimal(10, 2)
+  paxCount     Int?
+  acType       AcType?
+  boardType    BoardType?
+
+  // Preserve the price information from the selected service.
+  currency    Currency @default(SAR)
+  amount      Decimal  @db.Decimal(12, 2)
+  discount    Decimal  @default(0) @db.Decimal(12, 2)
+  totalAmount Decimal  @db.Decimal(12, 2)
+
+  // Save the actual selected terms, not just template IDs.
+  termsConditionsSnapshot Json?
+  notes                   String? @db.Text
+
+  quotationId     Int
+  quotationItemId Int
+  createdById     Int
+
+  quotation     Quotation     @relation(fields: [quotationId], references: [id], onDelete: Restrict)
+  quotationItem QuotationItem @relation(fields: [quotationItemId], references: [id], onDelete: Restrict)
+  createdBy     User          @relation(fields: [createdById], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([quotationId])
+  @@index([quotationItemId])
+  @@index([status])
+  @@index([checkIn, checkOut])
 }

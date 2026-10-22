@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import QuotationBankTermsFooter from "@/components/quotations/QuotationBankTermsFooter";
+import HotelConfirmationManager from "@/components/quotations/HotelConfirmationManager";
 
 type QuotationItem = {
   id: number;
@@ -764,6 +765,14 @@ export default function QuotationPreviewPage() {
               </div>
             </div>
           </section>
+
+          {/* HOTEL CONFIRMATIONS — NOT PRINTED */}
+          <HotelConfirmationManager
+            quotationId={quotation.id}
+            items={quotation.items
+              .filter((item) => item.serviceType === "HOTEL_ACCOMMODATION")
+              .map((item) => ({ id: item.id, description: item.description }))}
+          />
 
           {/* BILLING ACTION — NOT PRINTED */}
           <section className="print-hidden mx-6 mb-6 rounded-2xl border border-[#E4E7EC] bg-[#F7F8F6] p-5 sm:mx-8">
