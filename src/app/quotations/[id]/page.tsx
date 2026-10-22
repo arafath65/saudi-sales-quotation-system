@@ -10,10 +10,17 @@ type QuotationItem = {
   id: number;
   serviceType: string;
   description: string;
-  amount: string;
-  quantity: string;
-  discount: string;
-  totalAmount: string;
+  amount: string | number;
+  quantity: string | number;
+  discount: string | number;
+  totalAmount: string | number;
+  numberOfDays?: number | null;
+  adultPrice?: string | number | null;
+  adultQuantity?: number | null;
+  childPrice?: string | number | null;
+  childQuantity?: number | null;
+  infantPrice?: string | number | null;
+  infantQuantity?: number | null;
 };
 
 type BankDetailSnapshot = {
@@ -34,6 +41,7 @@ type TermsConditionSnapshot = {
 
 type Quotation = {
   id: number;
+  currency?: "SAR" | "LKR" | "USD" | null;
   quotationNo: string;
   quotationDate: string;
   validUntil: string | null;
@@ -99,6 +107,11 @@ export default function QuotationPreviewPage() {
   const [invoiceLoading, setInvoiceLoading] = useState(false);
   const [error, setError] = useState("");
   const [invoiceError, setInvoiceError] = useState("");
+  const [editingItemId, setEditingItemId] = useState<number | null>(null);
+  const [quantityDraft, setQuantityDraft] = useState("1");
+  const [ticketQuantityDraft, setTicketQuantityDraft] = useState({ adult: "0", child: "0", infant: "0" });
+  const [savingQuantity, setSavingQuantity] = useState(false);
+  const [quantityError, setQuantityError] = useState("");
 
   const loadQuotation = useCallback(async () => {
     try {
@@ -221,6 +234,58 @@ export default function QuotationPreviewPage() {
       );
     } finally {
       setInvoiceLoading(false);
+    }
+  }
+
+  function startQuantityEdit(item: QuotationItem) {
+    setEditingItemId(item.id);
+    setQuantityDraft(String(item.quantity ?? 1));
+    setTicketQuantityDraft({
+      adult: String(item.adultQuantity ?? 0),
+      child: String(item.childQuantity ?? 0),
+      infant: String(item.infantQuantity ?? 0),
+    });
+    setQuantityError("");
+  }
+
+  async function saveQuantityEdit() {
+    if (!quotation || editingItemId === null) return;
+    const item = quotation.items.find((row) => row.id === editingItemId);
+    if (!item) return;
+
+    const payload = item.serviceType === "AIR_TICKET"
+      ? {
+          adultQuantity: Number(ticketQuantityDraft.adult),
+          childQuantity: Number(ticketQuantityDraft.child),
+          infantQuantity: Number(ticketQuantityDraft.infant),
+        }
+      : { quantity: Number(quantityDraft) };
+
+    try {
+      setSavingQuantity(true);
+      setQuantityError("");
+      const response = await fetch(`/api/quotations/${quotation.id}/items/${item.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const text = await response.text();
+      let data: { success?: boolean; message?: string } = {};
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        throw new Error(`Quantity API returned an invalid response (HTTP ${response.status}).`);
+      }
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || `Unable to update quantity (HTTP ${response.status}).`);
+      }
+      setEditingItemId(null);
+      await loadQuotation();
+    } catch (err) {
+      console.error("Update service quantity error:", err);
+      setQuantityError(err instanceof Error ? err.message : "Unable to update service quantity.");
+    } finally {
+      setSavingQuantity(false);
     }
   }
 
@@ -504,9 +569,7 @@ export default function QuotationPreviewPage() {
                       width={140}
                       height={64}
                       unoptimized
-                      loading="eager"
                       className="h-16 w-auto max-w-[140px] object-contain"
-                      style={{ height: "64px", width: "auto" }}
                     />
                   )}
 
@@ -517,7 +580,6 @@ export default function QuotationPreviewPage() {
                       width={140}
                       height={64}
                       unoptimized
-                      loading="eager"
                       className="h-16 max-w-[140px] object-contain"
                     />
                   )}
@@ -529,7 +591,6 @@ export default function QuotationPreviewPage() {
                       width={140}
                       height={64}
                       unoptimized
-                      loading="eager"
                       className="h-16 max-w-[140px] object-contain"
                     />
                   )}
@@ -640,20 +701,35 @@ export default function QuotationPreviewPage() {
                         </p>
 
                         <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-[#0F6B5B]">
-                          {item.serviceType.replaceAll("_", " ")}
+                          {item.serviceType === "RAWDHA"
+                            ? "Rawdha"
+                            : item.serviceType.replaceAll("_", " ")}
                         </p>
                       </td>
 
                       <td className="px-4 py-4 text-center text-[#667085]">
-                        {Number(item.quantity)}
+                        <div className="flex flex-col items-center gap-1">
+                          <span>
+                            {item.serviceType === "AIR_TICKET"
+                              ? `${Number(item.adultQuantity ?? 0) + Number(item.childQuantity ?? 0) + Number(item.infantQuantity ?? 0)} passenger(s)`
+                              : Number(item.quantity)}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => startQuantityEdit(item)}
+                            className="print-hidden rounded-lg border border-[#D0D5DD] px-2 py-1 text-[10px] font-bold text-[#0F6B5B] hover:border-[#0F6B5B]"
+                          >
+                            Edit quantity
+                          </button>
+                        </div>
                       </td>
 
                       <td className="px-4 py-4 text-right text-[#667085]">
-                        SAR {money(item.amount)}
+                        {quotation.currency ?? "SAR"} {money(item.amount)}
                       </td>
 
                       <td className="px-4 py-4 text-right font-bold text-[#1F2933]">
-                        SAR {money(item.totalAmount)}
+                        {quotation.currency ?? "SAR"} {money(item.totalAmount)}
                       </td>
                     </tr>
                   ))}
@@ -666,12 +742,12 @@ export default function QuotationPreviewPage() {
               <div className="w-full max-w-sm space-y-3">
                 <div className="flex justify-between text-sm text-[#667085]">
                   <span>Subtotal</span>
-                  <span>SAR {money(quotation.subtotal)}</span>
+                  <span>{quotation.currency ?? "SAR"} {money(quotation.subtotal)}</span>
                 </div>
 
                 <div className="flex justify-between text-sm text-[#667085]">
                   <span>Discount</span>
-                  <span>SAR {money(quotation.discount)}</span>
+                  <span>{quotation.currency ?? "SAR"} {money(quotation.discount)}</span>
                 </div>
 
                 <div className="border-t-2 border-[#0F6B5B] pt-3">
@@ -681,7 +757,7 @@ export default function QuotationPreviewPage() {
                     </span>
 
                     <span className="text-2xl font-black text-[#0F6B5B]">
-                      SAR {money(quotation.totalAmount)}
+                      {quotation.currency ?? "SAR"} {money(quotation.totalAmount)}
                     </span>
                   </div>
                 </div>
@@ -720,11 +796,14 @@ export default function QuotationPreviewPage() {
             </div>
           </section>
 
-          {/* BANK DETAILS AND TERMS — BOTTOM OF QUOTATION */}
-          <QuotationBankTermsFooter
-            bankDetails={quotation.bankDetailsSnapshot}
-            termsConditions={quotation.termsConditionsSnapshot}
-          />
+          {/* BANK DETAILS AND TERMS — ONLY RENDER WHEN THERE IS CONTENT */}
+          {((quotation.bankDetailsSnapshot?.length ?? 0) > 0 ||
+            (quotation.termsConditionsSnapshot?.length ?? 0) > 0) && (
+            <QuotationBankTermsFooter
+              bankDetails={quotation.bankDetailsSnapshot}
+              termsConditions={quotation.termsConditionsSnapshot}
+            />
+          )}
 
           {/* COMPANY FOOTER */}
           <footer className="border-t border-[#E4E7EC] bg-[#FAFAF8] px-6 py-5 text-center sm:px-8">
@@ -739,6 +818,87 @@ export default function QuotationPreviewPage() {
             )}
           </footer>
         </article>
+
+        {editingItemId !== null && quotation.items.some((item) => item.id === editingItemId) && (() => {
+          const item = quotation.items.find((row) => row.id === editingItemId)!;
+          return (
+            <div className="print-hidden fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+              <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#C9A227]">Update service</p>
+                    <h2 className="mt-1 text-xl font-black text-[#1F2933]">Edit quantity</h2>
+                    <p className="mt-1 text-sm text-[#667085]">{item.serviceType === "RAWDHA" ? "Rawdha" : item.serviceType.replaceAll("_", " ")}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { setEditingItemId(null); setQuantityError(""); }}
+                    disabled={savingQuantity}
+                    aria-label="Close quantity editor"
+                    className="rounded-lg border border-[#D0D5DD] px-3 py-1.5 text-sm text-[#475467] disabled:opacity-50"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <form onSubmit={(event) => { event.preventDefault(); void saveQuantityEdit(); }} className="mt-5 space-y-4">
+                  {item.serviceType === "AIR_TICKET" ? (
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                      {(["adult", "child", "infant"] as const).map((kind) => (
+                        <label key={kind} className="block text-xs font-bold text-[#344054]">
+                          {kind[0].toUpperCase() + kind.slice(1)} passengers
+                          <input
+                            type="number"
+                            min="0"
+                            max="999999"
+                            step="1"
+                            required
+                            value={ticketQuantityDraft[kind]}
+                            onChange={(event) => setTicketQuantityDraft((current) => ({ ...current, [kind]: event.target.value }))}
+                            className="mt-1.5 w-full rounded-xl border border-[#D0D5DD] px-3 py-3 text-sm font-normal outline-none focus:border-[#0F6B5B]"
+                          />
+                        </label>
+                      ))}
+                    </div>
+                  ) : (
+                    <label className="block text-xs font-bold text-[#344054]">
+                      {item.serviceType === "HOTEL_ACCOMMODATION" ? "Room quantity" : "Quantity"}
+                      <input
+                        type="number"
+                        min="0.01"
+                        max="99999999.99"
+                        step="0.01"
+                        required
+                        value={quantityDraft}
+                        onChange={(event) => setQuantityDraft(event.target.value)}
+                        className="mt-1.5 w-full rounded-xl border border-[#D0D5DD] px-3 py-3 text-sm font-normal outline-none focus:border-[#0F6B5B]"
+                      />
+                    </label>
+                  )}
+
+                  <p className="rounded-xl bg-[#F7F8F6] p-3 text-xs leading-5 text-[#667085]">
+                    The service total and quotation total will be recalculated. If an invoice exists, its total and outstanding balance will also be recalculated. Existing payment records will not be deleted or changed.
+                  </p>
+                  {quantityError && <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{quantityError}</p>}
+
+                  <div className="flex justify-end gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => { setEditingItemId(null); setQuantityError(""); }}
+                      disabled={savingQuantity}
+                      className="rounded-xl border border-[#D0D5DD] px-4 py-2.5 text-xs font-bold text-[#344054] disabled:opacity-50"
+                    >Cancel</button>
+                    <button
+                      type="submit"
+                      disabled={savingQuantity}
+                      className="rounded-xl bg-[#0F6B5B] px-4 py-2.5 text-xs font-bold text-white disabled:opacity-50"
+                    >{savingQuantity ? "Saving…" : "Save quantity"}</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          );
+        })()}
       </main>
     </>
   );

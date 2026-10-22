@@ -1,0 +1,11 @@
+-- AlterTable
+ALTER TABLE `invoice` ADD COLUMN `currency` ENUM('SAR', 'LKR', 'USD') NOT NULL DEFAULT 'SAR';
+
+-- AlterTable
+ALTER TABLE `invoiceitem` MODIFY `serviceType` ENUM('UMRAH_VISA', 'RAWDHA', 'HOTEL_ACCOMMODATION', 'AIR_TICKET', 'TRANSPORTATION') NOT NULL;
+
+-- AlterTable
+ALTER TABLE `quotation` ADD COLUMN `currency` ENUM('SAR', 'LKR', 'USD') NOT NULL DEFAULT 'SAR';
+
+-- AlterTable
+ALTER TABLE `quotationitem` MODIFY `serviceType` ENUM('UMRAH_VISA', 'RAWDHA', 'HOTEL_ACCOMMODATION', 'AIR_TICKET', 'TRANSPORTATION') NOT NULL;

@@ -2,18 +2,11 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit";
-import {
-  InvoiceStatus,
-  Prisma,
-  QuotationStatus,
-} from "@/generated/prisma/client";
-import { expireOverdueQuotations } from "@/lib/quotation-expiry";
+import { InvoiceStatus, Prisma } from "@/generated/prisma/client";
 
 export const dynamic = "force-dynamic";
 
-function money(
-  value: Prisma.Decimal | number | string | null | undefined
-) {
+function money(value: Prisma.Decimal | number | string | null | undefined) {
   const number = Number(value ?? 0);
   return Number.isFinite(number) ? number : 0;
 }
@@ -38,19 +31,12 @@ function buildItemDescription(item: {
   serviceType: string;
   visaType: string | null;
   hotelName: string | null;
-  roomType?: string | null;
-  numberOfDays?: number | null;
   paxCount: number | null;
   acType: string | null;
   boardType: string | null;
   ticketType: string | null;
-  airlineName?: string | null;
-  baggageWeightKg?: Prisma.Decimal | number | string | null;
   route?: { name: string } | null;
-  vehicleType?: {
-    name: string;
-    seatCount: number | null;
-  } | null;
+  vehicleType?: { name: string; seatCount: number | null } | null;
 }) {
   if (item.description?.trim()) {
     return item.description.trim();
@@ -59,6 +45,10 @@ function buildItemDescription(item: {
   const parts: string[] = [];
 
   switch (item.serviceType) {
+    case "RAWDHA":
+      parts.push("Rawdha");
+      break;
+
     case "UMRAH_VISA":
       parts.push(
         item.visaType === "INDIVIDUAL_VISA"
@@ -71,21 +61,8 @@ function buildItemDescription(item: {
 
     case "HOTEL_ACCOMMODATION":
       if (item.hotelName) parts.push(item.hotelName);
-      if (item.roomType) parts.push(item.roomType);
-
-      if (item.numberOfDays) {
-        parts.push(
-          `${item.numberOfDays} ${
-            item.numberOfDays === 1 ? "day" : "days"
-          }`
-        );
-      } else if (item.paxCount) {
-        // Compatibility fallback for historical hotel items.
-        parts.push(`${item.paxCount} Pax`);
-      }
-
+      if (item.paxCount) parts.push(`${item.paxCount} Pax`);
       parts.push(item.acType === "NON_AC" ? "Non-AC" : "AC");
-
       parts.push(
         item.boardType === "BED_BREAKFAST"
           ? "Bed & Breakfast"
@@ -94,32 +71,13 @@ function buildItemDescription(item: {
       break;
 
     case "AIR_TICKET":
-      if (item.airlineName) {
-        parts.push(item.airlineName);
-      }
-
       parts.push(
-        item.ticketType === "RETURN"
-          ? "Return Ticket"
-          : "One Way Ticket"
+        item.ticketType === "RETURN" ? "Return Ticket" : "One Way Ticket"
       );
-
-      if (
-        item.baggageWeightKg !== undefined &&
-        item.baggageWeightKg !== null
-      ) {
-        const baggage = money(item.baggageWeightKg)
-          .toFixed(2)
-          .replace(/\.00$/, "");
-
-        parts.push(`Baggage ${baggage} kg`);
-      }
       break;
 
     case "TRANSPORTATION":
-      if (item.route?.name) {
-        parts.push(item.route.name);
-      }
+      if (item.route?.name) parts.push(item.route.name);
 
       if (item.vehicleType?.name) {
         parts.push(
@@ -140,10 +98,7 @@ export async function GET(request: Request) {
 
     if (!userId) {
       return NextResponse.json(
-        {
-          success: false,
-          message: "Unauthorized.",
-        },
+        { success: false, message: "Unauthorized." },
         { status: 401 }
       );
     }
@@ -154,10 +109,7 @@ export async function GET(request: Request) {
 
     const where: Prisma.InvoiceWhereInput = {};
 
-    if (
-      status &&
-      Object.values(InvoiceStatus).includes(status as InvoiceStatus)
-    ) {
+    if (status && Object.values(InvoiceStatus).includes(status as InvoiceStatus)) {
       where.status = status as InvoiceStatus;
     }
 
@@ -184,6 +136,7 @@ export async function GET(request: Request) {
         customerId: true,
         customerName: true,
         customerMobile: true,
+        currency: true,
         totalAmount: true,
         paidAmount: true,
         balanceAmount: true,
@@ -202,9 +155,7 @@ export async function GET(request: Request) {
       module: "INVOICE",
       action: "LIST",
       entity: "Invoice",
-      description: `Viewed invoice list${
-        search ? ` using search "${search}"` : ""
-      }.`,
+      description: `Viewed invoice list${search ? ` using search "${search}"` : ""}.`,
       metadata: {
         search,
         status: status || null,
@@ -243,23 +194,9 @@ export async function POST(request: Request) {
       );
     }
 
-    let body: {
+    const body = (await request.json()) as {
       quotationId?: number | string;
     };
-
-    try {
-      body = (await request.json()) as {
-        quotationId?: number | string;
-      };
-    } catch {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "Invalid JSON request body.",
-        },
-        { status: 400 }
-      );
-    }
 
     const quotationId = parseId(body.quotationId);
 
@@ -272,7 +209,6 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
-    await expireOverdueQuotations();
 
     const quotation = await prisma.quotation.findUnique({
       where: {
@@ -309,7 +245,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // Do not create a second invoice for the same quotation.
     if (quotation.invoice) {
       return NextResponse.json(
         {
@@ -321,24 +256,11 @@ export async function POST(request: Request) {
       );
     }
 
-    // The customer must accept the quotation before invoicing.
-    if (quotation.status !== QuotationStatus.ACCEPTED) {
-      return NextResponse.json(
-        {
-          success: false,
-          message:
-            "This quotation has not been accepted yet. Open the Quotations register and mark it Accepted before creating an invoice.",
-        },
-        { status: 409 }
-      );
-    }
-
     if (quotation.items.length === 0) {
       return NextResponse.json(
         {
           success: false,
-          message:
-            "Cannot create an invoice from a quotation without services.",
+          message: "Cannot create an invoice from a quotation without services.",
         },
         { status: 400 }
       );
@@ -390,9 +312,9 @@ export async function POST(request: Request) {
         invoiceNo,
         quotationId: quotation.id,
         customerId: quotation.customerId,
+        currency: quotation.currency ?? "SAR",
         invoiceDate: new Date(),
 
-        // Store the customer details as a snapshot.
         customerName: quotation.customerName,
         customerMobile: quotation.customerMobile,
         customerWhatsapp: quotation.customerWhatsapp,
@@ -412,7 +334,6 @@ export async function POST(request: Request) {
 
         createdById: userId,
 
-        // Copy all quotation services, including ticket details.
         items: {
           create: quotation.items.map((item) => ({
             serviceType: item.serviceType,
@@ -420,21 +341,10 @@ export async function POST(request: Request) {
 
             visaType: item.visaType,
             hotelName: item.hotelName,
-            roomType: item.roomType,
-            numberOfDays: item.numberOfDays,
             paxCount: item.paxCount,
             acType: item.acType,
             boardType: item.boardType,
             ticketType: item.ticketType,
-            airlineName: item.airlineName,
-            baggageWeightKg: item.baggageWeightKg,
-
-            adultPrice: item.adultPrice,
-            adultQuantity: item.adultQuantity,
-            childPrice: item.childPrice,
-            childQuantity: item.childQuantity,
-            infantPrice: item.infantPrice,
-            infantQuantity: item.infantQuantity,
 
             routeId: item.routeId,
             vehicleTypeId: item.vehicleTypeId,
@@ -443,6 +353,7 @@ export async function POST(request: Request) {
             quantity: item.quantity,
             discount: item.discount,
             totalAmount: item.totalAmount,
+
             sortOrder: item.sortOrder,
           })),
         },

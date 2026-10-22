@@ -11,6 +11,8 @@ type DashboardRange =
   | "LAST_1_YEAR"
   | "ALL_TIME";
 
+type Currency = "SAR" | "LKR" | "USD";
+
 type TrendPoint = {
   key: string;
   label: string;
@@ -43,6 +45,7 @@ type OutstandingInvoice = {
   totalAmount: number;
   paidAmount: number;
   balanceAmount: number;
+  currency?: Currency;
   status: string;
 };
 
@@ -57,6 +60,7 @@ type RecentPayment = {
     id: number;
     invoiceNo: string;
     customerName: string;
+    currency?: Currency;
   };
 };
 
@@ -68,12 +72,14 @@ type AcceptedQuotation = {
   customerMobile: string;
   iqamaNo: string | null;
   totalAmount: number;
+  currency?: Currency;
 };
 
 type DashboardData = {
   success: boolean;
   message?: string;
   generatedAt: string;
+  currency?: Currency;
   period: { key: DashboardRange; label: string; start: string; endExclusive: string };
   summary: Summary;
   salesTrend: TrendPoint[];
@@ -155,7 +161,7 @@ function EmptyState({ text }: { text: string }) {
   return <div className="px-4 py-10 text-center text-xs text-[#98A2B3]">{text}</div>;
 }
 
-function LineChart({ data }: { data: TrendPoint[] }) {
+function LineChart({ data, currency }: { data: TrendPoint[]; currency: Currency }) {
   const width = 720;
   const height = 250;
   const padding = { left: 44, right: 12, top: 18, bottom: 38 };
@@ -198,10 +204,10 @@ function LineChart({ data }: { data: TrendPoint[] }) {
           {data.map((point, index) => (
             <g key={point.key}>
               <circle cx={x(index)} cy={y(point.invoiceAmount)} r="3" fill="#0F6B5B">
-                <title>{`${point.label} — Invoiced SAR ${money(point.invoiceAmount)}`}</title>
+                <title>{`${point.label} — Invoiced ${currency} ${money(point.invoiceAmount)}`}</title>
               </circle>
               <circle cx={x(index)} cy={y(point.collectedAmount)} r="3" fill="#C9A227">
-                <title>{`${point.label} — Collected SAR ${money(point.collectedAmount)}`}</title>
+                <title>{`${point.label} — Collected ${currency} ${money(point.collectedAmount)}`}</title>
               </circle>
               {labelIndices.has(index) && (
                 <text x={x(index)} y={height - 12} textAnchor="middle" fill="#667085" fontSize="10">{point.label}</text>
@@ -256,7 +262,7 @@ function QuotationDonut({ rows }: { rows: QuotationStatusRow[] }) {
   );
 }
 
-function ServiceRevenue({ rows }: { rows: ServiceRevenueRow[] }) {
+function ServiceRevenue({ rows, currency }: { rows: ServiceRevenueRow[]; currency: Currency }) {
   const maxAmount = Math.max(1, ...rows.map((row) => row.amount));
   if (!rows.length || rows.every((row) => row.amount === 0)) {
     return <EmptyState text="No invoiced service revenue in this period." />;
@@ -268,7 +274,7 @@ function ServiceRevenue({ rows }: { rows: ServiceRevenueRow[] }) {
         <div key={row.serviceType}>
           <div className="mb-2 flex items-center justify-between gap-3">
             <span className="text-xs font-semibold text-[#344054]">{row.label}</span>
-            <span className="whitespace-nowrap text-xs font-black tabular-nums text-[#1F2933]">SAR {money(row.amount)}</span>
+            <span className="whitespace-nowrap text-xs font-black tabular-nums text-[#1F2933]">{currency} {money(row.amount)}</span>
           </div>
           <div className="h-2.5 overflow-hidden rounded-full bg-[#F2F4F7]">
             <div
@@ -296,6 +302,7 @@ function SectionHeading({ eyebrow, title, href, linkLabel }: { eyebrow?: string;
 
 export default function DashboardPage() {
   const [range, setRange] = useState<DashboardRange>("THIS_MONTH");
+  const [currency, setCurrency] = useState<Currency>("SAR");
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -311,7 +318,7 @@ export default function DashboardPage() {
       setError("");
 
       try {
-        const response = await fetch(`/api/dashboard?range=${range}`, {
+        const response = await fetch(`/api/dashboard?range=${range}&currency=${currency}`, {
           cache: "no-store",
           credentials: "same-origin",
         });
@@ -350,7 +357,7 @@ export default function DashboardPage() {
     };
     // Range/retry should refresh the dashboard; previous data remains visible during refresh.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [range, reloadKey]);
+  }, [range, currency, reloadKey]);
 
   const summary = data?.summary;
   const serviceRevenue = useMemo(() => data?.serviceRevenue ?? [], [data?.serviceRevenue]);
@@ -358,7 +365,7 @@ export default function DashboardPage() {
   const cards = [
     {
       label: "Invoiced Amount",
-      value: `SAR ${money(summary?.invoicedAmount)}`,
+      value: `${currency} ${money(summary?.invoicedAmount)}`,
       note: `${summary?.invoiceCount ?? 0} invoices in ${data?.period.label ?? "this period"}`,
       icon: "↗",
       tone: "#0F6B5B",
@@ -366,7 +373,7 @@ export default function DashboardPage() {
     },
     {
       label: "Payments Collected",
-      value: `SAR ${money(summary?.collectedAmount)}`,
+      value: `${currency} ${money(summary?.collectedAmount)}`,
       note: `${summary?.paymentCount ?? 0} payments in ${data?.period.label ?? "this period"}`,
       icon: "✓",
       tone: "#178653",
@@ -374,7 +381,7 @@ export default function DashboardPage() {
     },
     {
       label: "Outstanding Balance",
-      value: `SAR ${money(summary?.outstandingAmount)}`,
+      value: `${currency} ${money(summary?.outstandingAmount)}`,
       note: `${summary?.outstandingInvoiceCount ?? 0} invoices with a remaining due · all dates`,
       icon: "◷",
       tone: "#D92D20",
@@ -383,7 +390,7 @@ export default function DashboardPage() {
     {
       label: "Pending Quotations",
       value: String(summary?.pendingQuotationCount ?? 0),
-      note: `SAR ${money(summary?.pendingQuotationAmount)} awaiting customer decision`,
+      note: `${currency} ${money(summary?.pendingQuotationAmount)} awaiting customer decision`,
       icon: "▤",
       tone: "#B78103",
       href: "/quotations",
@@ -413,6 +420,17 @@ export default function DashboardPage() {
             <p className="mt-2 max-w-2xl text-sm leading-6 text-[#667085]">Your sales performance, collections and follow-up work in one place.</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <label htmlFor="dashboardCurrency" className="text-xs font-bold text-[#667085]">Currency</label>
+            <select
+              id="dashboardCurrency"
+              value={currency}
+              onChange={(event) => setCurrency(event.target.value as Currency)}
+              className="rounded-xl border border-[#D0D5DD] bg-white px-3 py-2.5 text-sm font-semibold text-[#344054] outline-none focus:border-[#0F6B5B] focus:ring-4 focus:ring-[#0F6B5B]/10"
+            >
+              <option value="SAR">SAR — Saudi Riyal</option>
+              <option value="LKR">LKR — Sri Lankan Rupee</option>
+              <option value="USD">USD — US Dollar</option>
+            </select>
             <label htmlFor="dashboardRange" className="text-xs font-bold text-[#667085]">Date range</label>
             <select
               id="dashboardRange"
@@ -454,7 +472,7 @@ export default function DashboardPage() {
           <section className="rounded-2xl border border-[#E4E7EC] bg-white p-5 shadow-sm sm:p-6">
             <SectionHeading eyebrow="Performance" title="Sales vs. Collections" />
             <p className="mt-1 text-xs text-[#98A2B3]">Invoice value compared with payments received · {data?.period.label ?? "This Month"}</p>
-            <div className="mt-5"><LineChart data={data?.salesTrend ?? []} /></div>
+            <div className="mt-5"><LineChart data={data?.salesTrend ?? []} currency={currency} /></div>
           </section>
 
           <section className="rounded-2xl border border-[#E4E7EC] bg-white p-5 shadow-sm sm:p-6">
@@ -468,7 +486,7 @@ export default function DashboardPage() {
           <section className="rounded-2xl border border-[#E4E7EC] bg-white p-5 shadow-sm sm:p-6">
             <SectionHeading eyebrow="Service Mix" title="Revenue by Service" href="/invoices" linkLabel="View invoices →" />
             <p className="mt-1 text-xs text-[#98A2B3]">From non-cancelled invoice items in the selected period.</p>
-            <div className="mt-6"><ServiceRevenue rows={serviceRevenue} /></div>
+            <div className="mt-6"><ServiceRevenue rows={serviceRevenue} currency={currency} /></div>
           </section>
 
           <section className="rounded-2xl border border-[#E4E7EC] bg-white p-5 shadow-sm sm:p-6">
@@ -482,7 +500,7 @@ export default function DashboardPage() {
                     <tr key={quote.id} className="border-b border-[#F0F2F4] last:border-0 hover:bg-[#FAFAF8]">
                       <td className="py-3 pr-3"><Link href={`/quotations/${quote.id}`} className="text-xs font-black text-[#0F6B5B] hover:underline">{quote.quotationNo}</Link><p className="mt-1 text-xs font-semibold text-[#344054]">{quote.customerName}</p><p className="mt-1 text-[10px] text-[#98A2B3]">{quote.iqamaNo ? `Iqama: ${quote.iqamaNo} · ` : ""}{quote.customerMobile}</p></td>
                       <td className="whitespace-nowrap py-3 px-2 text-[10px] text-[#667085]">{dateLabel(quote.quotationDate)}</td>
-                      <td className="whitespace-nowrap py-3 pl-2 text-right text-xs font-black text-[#1F2933]">SAR {money(quote.totalAmount)}</td>
+                      <td className="whitespace-nowrap py-3 pl-2 text-right text-xs font-black text-[#1F2933]">{quote.currency ?? currency} {money(quote.totalAmount)}</td>
                     </tr>
                   ))}</tbody>
                 </table>
@@ -523,7 +541,7 @@ export default function DashboardPage() {
                           {payment.referenceNo && <p className="mt-1 break-words text-[10px] text-[#98A2B3]">Ref: {payment.referenceNo}</p>}
                         </td>
                         <td className="whitespace-nowrap px-3 py-3 text-right align-middle text-[11px] font-black text-green-700 tabular-nums">
-                          <span className="inline-block">SAR {money(payment.amount)}</span>
+                          <span className="inline-block">{payment.invoice.currency ?? currency} {money(payment.amount)}</span>
                         </td>
                       </tr>
                     ))}
@@ -543,7 +561,7 @@ export default function DashboardPage() {
                     <tr key={invoice.id} className="border-b border-[#F0F2F4] last:border-0 hover:bg-[#FAFAF8]">
                       <td className="px-5 py-3"><Link href={`/invoices/${invoice.id}`} className="text-xs font-black text-[#0F6B5B] hover:underline">{invoice.invoiceNo}</Link><p className="mt-1 text-xs font-semibold text-[#344054]">{invoice.customerName}</p><p className="mt-1 text-[10px] text-[#98A2B3]">{invoice.iqamaNo ? `Iqama: ${invoice.iqamaNo} · ` : ""}{invoice.customerMobile}</p></td>
                       <td className="px-3 py-3">{statusBadge(invoice.status)}</td>
-                      <td className="whitespace-nowrap px-5 py-3 text-right text-xs font-black text-red-600">SAR {money(invoice.balanceAmount)}</td>
+                      <td className="whitespace-nowrap px-5 py-3 text-right text-xs font-black text-red-600">{invoice.currency ?? currency} {money(invoice.balanceAmount)}</td>
                     </tr>
                   ))}</tbody>
                 </table>

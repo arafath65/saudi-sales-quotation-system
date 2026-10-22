@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  FormEvent,
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 
 type CompanySettings = {
@@ -26,7 +20,6 @@ type CustomerSnapshot = {
   customerCode?: string;
   name: string;
   mobile: string;
-  iqamaNo?: string | null;
   whatsapp?: string | null;
   email?: string | null;
   address?: string | null;
@@ -64,12 +57,13 @@ type Payment = {
 
 type Invoice = {
   id: number;
+  quotationId: number;
   invoiceNo: string;
   invoiceDate: string;
+  currency?: "SAR" | "LKR" | "USD" | null;
   customer: CustomerSnapshot;
   customerName?: string;
   customerMobile?: string;
-  customerIqamaNo?: string | null;
   customerWhatsapp?: string | null;
   customerEmail?: string | null;
   customerAddress?: string | null;
@@ -105,6 +99,7 @@ const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
 
 const SERVICE_LABELS: Record<string, string> = {
   UMRAH_VISA: "Umrah Visa",
+  RAWDHA: "Rawdha",
   HOTEL_ACCOMMODATION: "Hotel Accommodation",
   AIR_TICKET: "Air Ticket",
   TRANSPORTATION: "Transportation",
@@ -113,14 +108,34 @@ const SERVICE_LABELS: Record<string, string> = {
 function money(value: string | number | null | undefined) {
   const amount = Number(value ?? 0);
 
-  if (!Number.isFinite(amount)) {
-    return "0.00";
-  }
+  return Number.isFinite(amount)
+    ? new Intl.NumberFormat("en-US", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }).format(amount)
+    : "0.00";
+}
 
-  return new Intl.NumberFormat("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(amount);
+function formatPaymentAmount(value: string) {
+  const normalized = value.replace(/,/g, "");
+
+  if (!normalized) return "";
+
+  const [wholePart, ...fractionParts] = normalized.split(".");
+  const wholeDigits = wholePart.replace(/\D/g, "");
+  const fractionDigits = fractionParts
+    .join("")
+    .replace(/\D/g, "")
+    .slice(0, 2);
+
+  const groupedWhole = wholeDigits.replace(
+    /\B(?=(\d{3})+(?!\d))/g,
+    ","
+  );
+
+  return normalized.includes(".")
+    ? `${groupedWhole}.${fractionDigits}`
+    : groupedWhole;
 }
 
 function formatDate(value: string | null | undefined) {
@@ -210,13 +225,12 @@ export default function InvoicePage() {
   const [selectedPaymentId, setSelectedPaymentId] = useState<number | null>(null);
   const [receiptPaymentId, setReceiptPaymentId] = useState<number | null>(null);
 
-  const loadInvoice = useCallback(async () => {
+  async function loadInvoice() {
   if (!invoiceId) return;
 
   try {
-    setLoading(true);
-    setError("");
-
+    // Do not synchronously update React state here.
+    // The initial loading state is already true.
     const response = await fetch(`/api/invoices/${invoiceId}`, {
       cache: "no-store",
     });
@@ -239,34 +253,35 @@ export default function InvoicePage() {
       );
     }
 
+    // These state updates happen after the asynchronous request.
+    setError("");
     setInvoice(data.invoice);
     setCompany(data.company ?? null);
   } catch (err) {
     console.error(err);
+
     setError(
-      err instanceof Error ? err.message : "Unable to load invoice."
+      err instanceof Error
+        ? err.message
+        : "Unable to load invoice."
     );
   } finally {
     setLoading(false);
   }
-}, [invoiceId]);
+}
 
-useEffect(() => {
-  const timer = window.setTimeout(() => {
-    void loadInvoice();
-  }, 0);
+    useEffect(() => {
+    // Defer the request so state updates inside loadInvoice()
+    // are not treated as synchronous updates within this effect.
+    const timer = window.setTimeout(() => {
+      void loadInvoice();
+    }, 0);
 
-  return () => window.clearTimeout(timer);
-}, [loadInvoice]);
-
-  useEffect(() => {
-  const timer = window.setTimeout(() => {
-    void loadInvoice();
-  }, 0);
-
-  return () => window.clearTimeout(timer);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [invoiceId]);
+    return () => {
+      window.clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [invoiceId]);
 
   const customer = useMemo<CustomerSnapshot | null>(() => {
     if (!invoice) return null;
@@ -275,7 +290,6 @@ useEffect(() => {
       ...(invoice.customer ?? { name: "", mobile: "" }),
       name: invoice.customer?.name ?? invoice.customerName ?? "",
       mobile: invoice.customer?.mobile ?? invoice.customerMobile ?? "",
-      iqamaNo: invoice.customer?.iqamaNo ?? invoice.customerIqamaNo ?? null,
       whatsapp: invoice.customer?.whatsapp ?? invoice.customerWhatsapp ?? null,
       email: invoice.customer?.email ?? invoice.customerEmail ?? null,
       address: invoice.customer?.address ?? invoice.customerAddress ?? null,
@@ -283,7 +297,11 @@ useEffect(() => {
       passportNo: invoice.customer?.passportNo ?? invoice.customerPassportNo ?? null,
     };
   }, [invoice]);
+
+  const total = Number(invoice?.totalAmount ?? 0);
+  const paid = Number(invoice?.paidAmount ?? 0);
   const balance = Math.max(0, Number(invoice?.balanceAmount ?? 0));
+  const paidPercent = total > 0 ? Math.min(100, Math.max(0, (paid / total) * 100)) : 0;
 
   function openPayment() {
     if (!invoice || balance <= 0 || invoice.status === "CANCELLED") return;
@@ -315,7 +333,7 @@ useEffect(() => {
     }
 
     if (amount > balance + 0.0001) {
-      setPaymentError(`Payment cannot exceed the current due of SAR ${money(balance)}.`);
+      setPaymentError(`Payment cannot exceed the current due of ${invoice.currency ?? "SAR"} ${money(balance)}.`);
       return;
     }
 
@@ -408,12 +426,16 @@ useEffect(() => {
           <p className="mt-3 text-sm leading-6 text-[#667085]">{error || "Invoice not found."}</p>
           <div className="mt-6 flex gap-3">
             <button
-              type="button"
-              onClick={() => loadInvoice()}
-              className="rounded-xl bg-[#0F6B5B] px-4 py-3 text-sm font-bold text-white hover:bg-[#0A4F44]"
-            >
-              Try Again
-            </button>
+  type="button"
+  onClick={() => {
+    setLoading(true);
+    setError("");
+    void loadInvoice();
+  }}
+  className="rounded-xl bg-[#0F6B5B] px-4 py-3 text-sm font-bold text-white hover:bg-[#0A4F44]"
+>
+  Try Again
+</button>
             <button
               type="button"
               onClick={() => router.back()}
@@ -427,6 +449,7 @@ useEffect(() => {
     );
   }
 
+  const receiptLogo = logoUrl(company?.logo1Path);
   const logos = [company?.logo1Path, company?.logo2Path, company?.logo3Path]
     .map(logoUrl)
     .filter((value): value is string => Boolean(value));
@@ -442,80 +465,9 @@ useEffect(() => {
           display: none;
         }
 
-        /* Zero page margins suppress the browser's printed date/title/URL
-           header and footer. The invoice gets its own print padding below. */
-        @page {
-          size: A4 portrait;
-          margin: 0;
-        }
-
         @media print {
-          html,
-          body {
-            width: 100% !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            background: #fff !important;
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-          }
-
           .payment-receipt-print-only {
             display: none;
-          }
-
-          .invoice-print-content main {
-            width: 100% !important;
-            min-height: 0 !important;
-            margin: 0 !important;
-            padding: 4mm !important;
-            background: #fff !important;
-          }
-
-          .invoice-page-container {
-            width: 100% !important;
-            max-width: none !important;
-            margin: 0 !important;
-          }
-
-          .invoice-document-header {
-            padding: 0 0 5mm !important;
-            padding-left: 0 !important;
-            padding-right: 0 !important;
-          }
-
-          .invoice-customer-details,
-          .invoice-items-wrapper,
-          .invoice-totals-section,
-          .invoice-document-footer {
-            padding-left: 0 !important;
-            padding-right: 0 !important;
-          }
-
-          /* Keep invoice metadata at the top-right even if the print viewport
-             is narrower than Tailwind's md breakpoint. */
-          .invoice-header-layout {
-            display: flex !important;
-            flex-direction: row !important;
-            align-items: flex-start !important;
-            justify-content: space-between !important;
-            gap: 4mm !important;
-          }
-
-          .invoice-header-company {
-            width: 65% !important;
-            min-width: 0 !important;
-            flex: 1 1 auto !important;
-          }
-
-          .invoice-header-meta {
-            width: 30% !important;
-            min-width: 0 !important;
-            flex: 0 0 30% !important;
-          }
-
-          .invoice-payment-history {
-            display: none !important;
           }
 
           body.receipt-printing .invoice-print-content {
@@ -534,23 +486,46 @@ useEffect(() => {
       <div className="payment-receipt-print-only">
         {receiptPayment && (
           <div className="mx-auto max-w-xl p-10 text-[#1F2933]">
-            <div className="border-b-4 border-[#0F6B5B] pb-6 text-center">
-              <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#C9A227]">
-                Payment Receipt
-              </p>
-              <h1 className="mt-2 text-2xl font-black">
-                {company?.companyName ?? "Company"}
-              </h1>
-              {company?.phone && <p className="mt-2 text-xs text-[#667085]">{company.phone}</p>}
-              {company?.email && <p className="text-xs text-[#667085]">{company.email}</p>}
-            </div>
+            <div className="flex items-center gap-5 border-b-4 border-[#0F6B5B] pb-6">
+  {receiptLogo && (
+    <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-xl border border-[#E4E7EC] bg-white p-2">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={receiptLogo}
+        alt="Company logo"
+        className="max-h-full max-w-full object-contain"
+      />
+    </div>
+  )}
+
+  <div className="min-w-0 flex-1 text-center">
+    <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#C9A227]">
+      Payment Receipt
+    </p>
+
+    <h1 className="mt-2 text-2xl font-black">
+      {company?.companyName ?? "Company"}
+    </h1>
+
+    {company?.phone && (
+      <p className="mt-2 text-xs text-[#667085]">
+        {company.phone}
+      </p>
+    )}
+
+    {company?.email && (
+      <p className="text-xs text-[#667085]">
+        {company.email}
+      </p>
+    )}
+  </div>
+</div>
 
             <div className="mt-7 grid grid-cols-2 gap-6 border-b border-[#E4E7EC] pb-6">
               <div>
                 <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#98A2B3]">Customer</p>
-                <p className="mt-2 text-base font-bold">{customer?.name || "—"}</p>
-                <p className="mt-1 text-xs text-[#667085]">Iqama: {customer?.iqamaNo || "—"}</p>
-                <p className="mt-1 text-xs text-[#667085]">Contact: {customer?.mobile || "—"}</p>
+                <p className="mt-2 text-base font-bold">{customer?.name}</p>
+                <p className="mt-1 text-xs text-[#667085]">{customer?.mobile}</p>
               </div>
               <div className="text-right">
                 <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#98A2B3]">Invoice</p>
@@ -573,7 +548,7 @@ useEffect(() => {
               <div className="flex justify-between gap-4 pt-4">
                 <span className="text-base font-bold">Amount Received</span>
                 <span className="text-2xl font-black text-[#0F6B5B]">
-                  SAR {money(receiptPayment.amount)}
+                  {invoice.currency ?? "SAR"} {money(receiptPayment.amount)}
                 </span>
               </div>
             </div>
@@ -581,15 +556,15 @@ useEffect(() => {
             <div className="mt-6 rounded-xl bg-[#F7F8F6] p-5">
               <div className="flex justify-between gap-4 text-sm">
                 <span className="text-[#667085]">Invoice Total</span>
-                <span className="font-bold">SAR {money(invoice.totalAmount)}</span>
+                <span className="font-bold">{invoice.currency ?? "SAR"} {money(invoice.totalAmount)}</span>
               </div>
               <div className="mt-2 flex justify-between gap-4 text-sm">
                 <span className="text-[#667085]">Total Paid</span>
-                <span className="font-bold text-green-700">SAR {money(invoice.paidAmount)}</span>
+                <span className="font-bold text-green-700">{invoice.currency ?? "SAR"} {money(invoice.paidAmount)}</span>
               </div>
               <div className="mt-2 flex justify-between gap-4 text-sm">
                 <span className="font-bold">Balance Due</span>
-                <span className="font-black text-red-600">SAR {money(invoice.balanceAmount)}</span>
+                <span className="font-black text-red-600">{invoice.currency ?? "SAR"} {money(invoice.balanceAmount)}</span>
               </div>
             </div>
 
@@ -602,7 +577,7 @@ useEffect(() => {
 
       <div className="invoice-print-content">
     <main className="min-h-screen bg-[#F7F8F6] px-4 py-5 print:bg-white print:p-0 sm:px-6 lg:px-8">
-      <div className="invoice-page-container mx-auto max-w-5xl">
+      <div className="mx-auto max-w-5xl">
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3 print:hidden">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#C9A227]">Sales</p>
@@ -616,6 +591,13 @@ useEffect(() => {
               className="rounded-xl border border-[#D0D5DD] bg-white px-4 py-2.5 text-xs font-bold text-[#344054] hover:bg-[#FAFAF8]"
             >
               Back
+            </button>
+            <button
+              type="button"
+              onClick={() => router.push(`/quotations/${invoice.quotationId}`)}
+              className="rounded-xl border border-[#0F6B5B] bg-white px-4 py-2.5 text-xs font-bold text-[#0F6B5B] hover:bg-[#F2F8F6]"
+            >
+              Edit Service Quantities
             </button>
             <button
               type="button"
@@ -636,9 +618,9 @@ useEffect(() => {
         </div>
 
         <section className="overflow-hidden rounded-2xl border border-[#E4E7EC] bg-white shadow-sm print:rounded-none print:border-0 print:shadow-none">
-          <header className="invoice-document-header border-b border-[#E4E7EC] px-6 py-7 sm:px-8">
-            <div className="invoice-header-layout flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
-              <div className="invoice-header-company min-w-0">
+          <header className="border-b border-[#E4E7EC] px-6 py-7 sm:px-8">
+            <div className="grid grid-cols-[minmax(0,1fr)_minmax(150px,220px)] items-start gap-4">
+              <div className="min-w-0">
                 {logos.length > 0 ? (
                   <div className="flex flex-wrap items-center gap-3">
                     {logos.map((src, index) => (
@@ -669,98 +651,100 @@ useEffect(() => {
                 </div>
               </div>
 
-              <div className="invoice-header-meta shrink-0 md:min-w-[260px]">
-                <div className="flex flex-col items-end gap-3 text-right">
-                  <div>
-                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#C9A227]">
-                      Invoice
-                    </p>
-                    <p className="mt-1 text-xl font-black text-[#0F6B5B]">
-                      {invoice.invoiceNo}
-                    </p>
-                  </div>
-
-                  <div className="text-xs text-[#667085]">
-                    <p className="font-semibold text-[#344054]">Date</p>
-                    <p className="mt-1">{formatDate(invoice.invoiceDate)}</p>
-                  </div>
-
-                  <span
-                    className={`inline-flex rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] ${
-                      invoice.status === "PAID"
-                        ? "bg-green-50 text-green-700"
-                        : invoice.status === "PARTIALLY_PAID"
-                          ? "bg-amber-50 text-amber-700"
-                          : invoice.status === "CANCELLED"
-                            ? "bg-red-50 text-red-700"
-                            : "bg-[#0F6B5B]/10 text-[#0F6B5B]"
-                    }`}
-                  >
-                    {statusLabel(invoice.status)}
-                  </span>
-                </div>
+              <div className="min-w-0 text-right">
+                <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#C9A227]">Invoice</p>
+                <p className="mt-2 break-words text-xl font-black leading-tight text-[#0F6B5B]">
+  {invoice.invoiceNo}
+</p>
+                <p className="mt-2 text-xs text-[#667085]">Date: {formatDate(invoice.invoiceDate)}</p>
+                <span
+                  className={`mt-4 inline-flex rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] ${
+                    invoice.status === "PAID"
+                      ? "bg-green-50 text-green-700"
+                      : invoice.status === "PARTIALLY_PAID"
+                        ? "bg-amber-50 text-amber-700"
+                        : invoice.status === "CANCELLED"
+                          ? "bg-red-50 text-red-700"
+                          : "bg-[#0F6B5B]/10 text-[#0F6B5B]"
+                  }`}
+                >
+                  {statusLabel(invoice.status)}
+                </span>
               </div>
             </div>
           </header>
 
-          <div className="invoice-customer-details grid grid-cols-1 gap-5 border-b border-[#E4E7EC] px-6 py-5 sm:grid-cols-3 sm:gap-6 sm:px-8 print:grid-cols-3 print:gap-6 print:py-4">
-            <div className="min-w-0">
-              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#98A2B3]">Customer Name</p>
-              <p className="mt-2 break-words text-sm font-bold text-[#1F2933]">{customer?.name || "—"}</p>
-            </div>
-
-            <div className="min-w-0">
-              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#98A2B3]">Iqama Number</p>
-              <p className="mt-2 break-words text-sm font-semibold text-[#344054]">{customer?.iqamaNo || "—"}</p>
-            </div>
-
-            <div className="min-w-0">
-              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#98A2B3]">Contact Number</p>
-              <p className="mt-2 break-words text-sm font-semibold text-[#344054]">{customer?.mobile || "—"}</p>
+          <div className="border-b border-[#E4E7EC] px-6 py-5 sm:px-8">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#98A2B3]">Bill To</p>
+              <p className="mt-2 text-base font-bold text-[#1F2933]">{customer?.name}</p>
+              <div className="mt-1 space-y-1 text-xs leading-5 text-[#667085]">
+                <p>{customer?.mobile}</p>
+                {customer?.whatsapp && <p>WhatsApp: {customer.whatsapp}</p>}
+                {customer?.email && <p>{customer.email}</p>}
+                {customer?.address && <p>{customer.address}</p>}
+              </div>
             </div>
           </div>
 
-          <div className="invoice-items-wrapper px-0 sm:px-8">
-            <div className="overflow-visible">
-              <table className="w-full table-fixed text-left print:table-fixed">
+          <div className="px-6 sm:px-8 print:px-6">
+  <div className="overflow-visible print:overflow-visible">
+    <table className="w-full table-fixed border-collapse text-left">
+      <colgroup>
+        <col style={{ width: "20%" }} />
+        <col style={{ width: "30%" }} />
+        <col style={{ width: "20%" }} />
+        <col style={{ width: "10%" }} />
+        <col style={{ width: "20%" }} />
+      </colgroup>
 
-                <thead>
-                  <tr className="border-b border-[#E4E7EC] bg-[#FAFAF8] text-[10px] font-black uppercase tracking-[0.12em] text-[#667085]">
-                    <th className="w-[18%] px-2 py-3 sm:px-0">Service</th>
-                    <th className="w-[19%] px-1 py-3">Description</th>
-                    <th className="w-[15%] px-1 py-3 text-right">Rate</th>
-                    <th className="w-[9%] px-1 py-3 text-right">Qty</th>
-                    <th className="w-[16%] px-1 py-3 text-right">Discount</th>
-                    <th className="w-[23%] px-2 py-3 text-right sm:px-0">Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {invoice.items.map((item) => (
-                    <tr key={item.id} className="border-b border-[#F0F2F4] align-top last:border-b-0">
-                      <td className="px-2 py-4 text-sm font-bold text-[#1F2933] break-words sm:px-0">
-                        {SERVICE_LABELS[item.serviceType] ?? item.serviceType}
-                      </td>
-                      <td className="px-1 py-4 text-xs leading-5 text-[#667085] break-words">{getServiceDescription(item)}</td>
-                      <td className="px-1 py-4 text-right text-xs font-semibold text-[#344054] whitespace-nowrap">
-                        SAR {money(item.amount)}
-                      </td>
-                      <td className="px-1 py-4 text-right text-xs font-semibold text-[#344054] whitespace-nowrap">
-                        {money(item.quantity)}
-                      </td>
-                      <td className="px-1 py-4 text-right text-xs font-semibold text-[#667085] whitespace-nowrap">
-                        SAR {money(item.discount)}
-                      </td>
-                      <td className="px-2 py-4 text-right text-sm font-black text-[#1F2933] whitespace-nowrap sm:px-0">
-                        SAR {money(item.totalAmount)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+      <thead>
+        <tr className="border-b border-[#E4E7EC] bg-[#FAFAF8] text-[9px] font-black uppercase tracking-[0.06em] text-[#667085]">
+          <th className="px-1.5 py-3 text-left">Service</th>
+          <th className="px-1.5 py-3 text-left">Description</th>
+          <th className="px-1.5 py-3 text-right">Rate</th>
+          <th className="px-1.5 py-3 text-right">Qty</th>
+          <th className="px-1.5 py-3 text-right">Total</th>
+        </tr>
+      </thead>
 
-          <div className="invoice-totals-section grid gap-6 border-t border-[#E4E7EC] px-6 py-5 sm:px-8 md:grid-cols-[1fr_340px] print:py-4">
+      <tbody>
+        {invoice.items.map((item) => (
+          <tr
+            key={item.id}
+            className="border-b border-[#F0F2F4] align-top last:border-b-0"
+          >
+            <td className="break-words px-1.5 py-4 text-xs font-bold leading-4 text-[#1F2933]">
+              {SERVICE_LABELS[item.serviceType] ?? item.serviceType}
+            </td>
+
+            <td className="break-words whitespace-normal px-1.5 py-4 text-[10px] leading-4 text-[#667085]">
+              {getServiceDescription(item)}
+            </td>
+
+            <td className="break-words whitespace-normal px-1.5 py-4 text-right text-[10px] font-semibold leading-4 text-[#344054]">
+              <span>
+                {invoice.currency ?? "SAR"} {money(item.amount)}
+              </span>
+            </td>
+
+            <td className="break-words px-1.5 py-4 text-right text-[10px] font-semibold leading-4 text-[#344054]">
+              {money(item.quantity)}
+            </td>
+
+            <td className="break-words whitespace-normal px-1.5 py-4 text-right text-[10px] font-black leading-4 text-[#1F2933]">
+              <span>
+                {invoice.currency ?? "SAR"} {money(item.totalAmount)}
+              </span>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+          <div className="grid gap-6 border-t border-[#E4E7EC] px-6 py-7 sm:px-8 md:grid-cols-[1fr_340px]">
             <div>
               {invoice.notes && (
                 <div>
@@ -773,29 +757,43 @@ useEffect(() => {
             <div className="space-y-3">
               <div className="flex justify-between gap-4 text-sm">
                 <span className="text-[#667085]">Subtotal</span>
-                <span className="font-semibold text-[#1F2933]">SAR {money(invoice.subtotal)}</span>
+                <span className="font-semibold text-[#1F2933]">{invoice.currency ?? "SAR"} {money(invoice.subtotal)}</span>
               </div>
               <div className="flex justify-between gap-4 text-sm">
                 <span className="text-[#667085]">Discount</span>
-                <span className="font-semibold text-[#1F2933]">SAR {money(invoice.discount)}</span>
+                <span className="font-semibold text-[#1F2933]">{invoice.currency ?? "SAR"} {money(invoice.discount)}</span>
               </div>
               <div className="border-t border-[#E4E7EC] pt-4">
                 <div className="flex justify-between gap-4">
                   <span className="text-sm font-bold text-[#344054]">Invoice Total</span>
-                  <span className="text-xl font-black text-[#0F6B5B]">SAR {money(invoice.totalAmount)}</span>
+                  <span className="text-xl font-black text-[#0F6B5B]">{invoice.currency ?? "SAR"} {money(invoice.totalAmount)}</span>
                 </div>
-                <div className="mt-2 flex justify-between gap-4 text-sm">
+                <div className="mt-3 flex justify-between gap-4 text-sm">
                   <span className="text-[#667085]">Paid</span>
-                  <span className="font-bold text-green-700">SAR {money(invoice.paidAmount)}</span>
+                  <span className="font-bold text-green-700">{invoice.currency ?? "SAR"} {money(invoice.paidAmount)}</span>
                 </div>
                 <div className="mt-2 flex justify-between gap-4 text-sm">
                   <span className="font-semibold text-[#344054]">Balance Due</span>
-                  <span className="font-black text-red-600">SAR {money(invoice.balanceAmount)}</span>
+                  <span className="font-black text-red-600">{invoice.currency ?? "SAR"} {money(invoice.balanceAmount)}</span>
                 </div>
               </div>
             </div>
           </div>
-<div className="invoice-payment-history border-t border-[#E4E7EC] px-6 py-7 sm:px-8">
+
+          <div className="border-t border-[#E4E7EC] px-6 py-6 sm:px-8 print:hidden">
+            <div className="flex items-end justify-between gap-4">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#98A2B3]">Payment Progress</p>
+                <p className="mt-1 text-xs text-[#667085]">{paidPercent.toFixed(0)}% of the invoice has been paid.</p>
+              </div>
+              <p className="text-sm font-black text-[#0F6B5B]">{invoice.currency ?? "SAR"} {money(invoice.paidAmount)} / {invoice.currency ?? "SAR"} {money(invoice.totalAmount)}</p>
+            </div>
+            <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#E4E7EC]">
+              <div className="h-full rounded-full bg-[#0F6B5B] transition-all" style={{ width: `${paidPercent}%` }} />
+            </div>
+          </div>
+
+          <div className="border-t border-[#E4E7EC] px-6 py-7 sm:px-8 print:hidden">
             <div className="flex items-center justify-between gap-4">
               <div>
                 <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#98A2B3]">Payment History</p>
@@ -818,17 +816,17 @@ useEffect(() => {
               </div>
             ) : (
               <>
-              <div className="mt-4 overflow-visible rounded-xl border border-[#E4E7EC]">
-                <div className="overflow-visible">
-                  <table className="w-full table-fixed text-left print:table-fixed">
+              <div className="mt-4 overflow-hidden rounded-xl border border-[#E4E7EC]">
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[740px] text-left">
                     <thead>
                       <tr className="border-b border-[#E4E7EC] bg-[#FAFAF8] text-[10px] font-black uppercase tracking-[0.12em] text-[#667085]">
-                        <th className="w-[10%] px-2 py-3 text-center">Select</th>
-                        <th className="w-[15%] px-2 py-3">Date</th>
-                        <th className="w-[19%] px-2 py-3">Method</th>
-                        <th className="w-[20%] px-2 py-3">Reference</th>
-                        <th className="w-[18%] px-2 py-3">Added By</th>
-                        <th className="w-[18%] px-2 py-3 text-right">Amount</th>
+                        <th className="w-12 px-4 py-3 text-center">Select</th>
+                        <th className="px-4 py-3">Date</th>
+                        <th className="px-4 py-3">Method</th>
+                        <th className="px-4 py-3">Reference</th>
+                        <th className="px-4 py-3">Added By</th>
+                        <th className="px-4 py-3 text-right">Amount</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -840,7 +838,7 @@ useEffect(() => {
                             selectedPaymentId === payment.id ? "bg-[#F2F8F6]" : "",
                           ].join(" ")}
                         >
-                          <td className="px-2 py-3 text-center">
+                          <td className="px-4 py-4 text-center">
                             <input
                               type="checkbox"
                               checked={selectedPaymentId === payment.id}
@@ -853,13 +851,13 @@ useEffect(() => {
                               aria-label={`Select payment ${payment.id}`}
                             />
                           </td>
-                          <td className="px-2 py-3 text-xs text-[#667085]">{formatDate(payment.paymentDate)}</td>
-                          <td className="px-2 py-3 text-xs font-semibold text-[#1F2933] break-words">
+                          <td className="px-4 py-4 text-xs text-[#667085]">{formatDate(payment.paymentDate)}</td>
+                          <td className="px-4 py-4 text-xs font-semibold text-[#1F2933]">
                             {PAYMENT_METHOD_LABELS[payment.method as PaymentMethod] ?? payment.method}
                           </td>
-                          <td className="px-2 py-3 text-xs text-[#667085] break-words">{payment.referenceNo || "—"}</td>
-                          <td className="px-2 py-3 text-xs text-[#667085] break-words">{payment.createdBy?.name || "—"}</td>
-                          <td className="px-2 py-3 text-right text-sm font-black text-green-700 whitespace-nowrap">SAR {money(payment.amount)}</td>
+                          <td className="px-4 py-4 text-xs text-[#667085]">{payment.referenceNo || "—"}</td>
+                          <td className="px-4 py-4 text-xs text-[#667085]">{payment.createdBy?.name || "—"}</td>
+                          <td className="px-4 py-4 text-right text-sm font-black text-green-700">{invoice.currency ?? "SAR"} {money(payment.amount)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -875,7 +873,7 @@ useEffect(() => {
                         Payment selected
                       </p>
                       <p className="mt-1 text-[11px] text-[#667085]">
-                        {formatDate(selectedPayment.paymentDate)} · {PAYMENT_METHOD_LABELS[selectedPayment.method as PaymentMethod] ?? selectedPayment.method} · SAR {money(selectedPayment.amount)}
+                        {formatDate(selectedPayment.paymentDate)} · {PAYMENT_METHOD_LABELS[selectedPayment.method as PaymentMethod] ?? selectedPayment.method} · {invoice.currency ?? "SAR"} {money(selectedPayment.amount)}
                       </p>
                     </>
                   ) : (
@@ -898,8 +896,8 @@ useEffect(() => {
             )}
           </div>
 
-          <footer className="invoice-document-footer border-t border-[#E4E7EC] px-6 py-6 text-center sm:px-8">
-            <p className="text-[10px] text-[#98A2B3]">This invoice is generated from the Saudi Sales Quotation System.</p>
+          <footer className="border-t border-[#E4E7EC] px-6 py-6 text-center sm:px-8">
+            <p className="text-xs font-semibold text-[#667085]">Thank you for your business.</p>
           </footer>
         </section>
       </div>
@@ -911,7 +909,7 @@ useEffect(() => {
               <div>
                 <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#C9A227]">Invoice Payment</p>
                 <h2 className="mt-1 text-xl font-bold text-[#1F2933]">Record Payment</h2>
-                <p className="mt-1 text-xs text-[#667085]">Current due: SAR {money(balance)}</p>
+                <p className="mt-1 text-xs text-[#667085]">Current due: {invoice.currency ?? "SAR"} {money(balance)}</p>
               </div>
               <button
                 type="button"
@@ -933,19 +931,20 @@ useEffect(() => {
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="sm:col-span-2">
                   <label className="block text-sm font-semibold text-[#1F2933]" htmlFor="paymentAmount">
-                    Payment Amount (SAR)
+                    Payment Amount ({invoice.currency ?? "SAR"})
                   </label>
                   <input
-                    id="paymentAmount"
-                    type="number"
-                    min="0.01"
-                    step="0.01"
-                    max={balance}
-                    value={paymentAmount}
-                    onChange={(event) => setPaymentAmount(event.target.value)}
-                    autoFocus
-                    className="mt-2 w-full rounded-xl border border-[#D0D5DD] px-4 py-3 text-sm outline-none focus:border-[#0F6B5B] focus:ring-4 focus:ring-[#0F6B5B]/10"
-                  />
+  id="paymentAmount"
+  type="text"
+  inputMode="decimal"
+  value={formatPaymentAmount(paymentAmount)}
+  onChange={(event) =>
+    setPaymentAmount(event.target.value.replace(/,/g, ""))
+  }
+  autoFocus
+  placeholder="0.00"
+  className="mt-2 w-full rounded-xl border border-[#D0D5DD] px-4 py-3 text-sm outline-none focus:border-[#0F6B5B] focus:ring-4 focus:ring-[#0F6B5B]/10"
+/>
                   <div className="mt-2 flex gap-2">
                     <button
                       type="button"
@@ -1013,17 +1012,17 @@ useEffect(() => {
               <div className="mt-6 rounded-xl bg-[#F7F8F6] p-4">
                 <div className="flex justify-between gap-4 text-sm">
                   <span className="text-[#667085]">Current Due</span>
-                  <span className="font-bold text-[#1F2933]">SAR {money(balance)}</span>
+                  <span className="font-bold text-[#1F2933]">{invoice.currency ?? "SAR"} {money(balance)}</span>
                 </div>
                 <div className="mt-2 flex justify-between gap-4 text-sm">
                   <span className="text-[#667085]">This Payment</span>
-                  <span className="font-bold text-[#0F6B5B]">SAR {money(paymentAmount)}</span>
+                  <span className="font-bold text-[#0F6B5B]">{invoice.currency ?? "SAR"} {money(paymentAmount)}</span>
                 </div>
                 <div className="mt-3 border-t border-[#E4E7EC] pt-3">
                   <div className="flex justify-between gap-4">
                     <span className="font-semibold text-[#344054]">Remaining Due</span>
                     <span className="font-black text-red-600">
-                      SAR {money(Math.max(0, balance - (Number(paymentAmount) || 0)))}
+                      {invoice.currency ?? "SAR"} {money(Math.max(0, balance - (Number(paymentAmount) || 0)))}
                     </span>
                   </div>
                 </div>

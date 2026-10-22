@@ -14,6 +14,7 @@ enum UserRole {
 
 enum ServiceType {
   UMRAH_VISA
+  RAWDHA
   HOTEL_ACCOMMODATION
   AIR_TICKET
   TRANSPORTATION
@@ -62,6 +63,12 @@ enum PaymentMethod {
   ONLINE_TRANSFER
   CHEQUE
   OTHER
+}
+
+enum Currency {
+  SAR
+  LKR
+  USD
 }
 
 model User {
@@ -139,8 +146,9 @@ model VehicleType {
 }
 
 model Quotation {
-  id          Int    @id @default(autoincrement())
-  quotationNo String @unique @db.VarChar(50)
+  id          Int      @id @default(autoincrement())
+  quotationNo String   @unique @db.VarChar(50)
+  currency    Currency @default(SAR)
   customerId  Int
 
   bankDetailsSnapshot     Json?
@@ -227,9 +235,10 @@ model QuotationItem {
 }
 
 model Invoice {
-  id          Int    @id @default(autoincrement())
-  invoiceNo   String @unique @db.VarChar(50)
-  quotationId Int    @unique
+  id          Int      @id @default(autoincrement())
+  invoiceNo   String   @unique @db.VarChar(50)
+  currency    Currency @default(SAR)
+  quotationId Int      @unique
   customerId  Int
 
   invoiceDate DateTime @default(now())

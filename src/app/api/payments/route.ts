@@ -149,10 +149,18 @@ export async function GET(request: Request) {
       ];
     }
 
-    const [totalCount, aggregate] = await Promise.all([
+    const [totalCount, sarAggregate, lkrAggregate, usdAggregate] = await Promise.all([
       prisma.payment.count({ where }),
       prisma.payment.aggregate({
-        where,
+        where: { ...where, invoice: { is: { currency: "SAR" } } },
+        _sum: { amount: true },
+      }),
+      prisma.payment.aggregate({
+        where: { ...where, invoice: { is: { currency: "LKR" } } },
+        _sum: { amount: true },
+      }),
+      prisma.payment.aggregate({
+        where: { ...where, invoice: { is: { currency: "USD" } } },
         _sum: { amount: true },
       }),
     ]);
@@ -181,6 +189,7 @@ export async function GET(request: Request) {
             customerId: true,
             customerName: true,
             customerMobile: true,
+            currency: true,
             totalAmount: true,
             paidAmount: true,
             balanceAmount: true,
@@ -196,7 +205,11 @@ export async function GET(request: Request) {
       },
     });
 
-    const totalAmount = Number(aggregate._sum.amount ?? 0);
+    const totalAmountByCurrency = {
+      SAR: Number(sarAggregate._sum.amount ?? 0),
+      LKR: Number(lkrAggregate._sum.amount ?? 0),
+      USD: Number(usdAggregate._sum.amount ?? 0),
+    };
 
     await writeAuditLog({
       userId: user.id,
@@ -211,7 +224,7 @@ export async function GET(request: Request) {
         page,
         pageSize,
         resultCount: totalCount,
-        totalAmount,
+        totalAmountByCurrency,
       },
     });
 
@@ -220,7 +233,7 @@ export async function GET(request: Request) {
       payments,
       summary: {
         count: totalCount,
-        totalAmount,
+        totalAmountByCurrency,
       },
       pagination: {
         page,

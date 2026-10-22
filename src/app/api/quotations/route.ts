@@ -8,6 +8,7 @@ import { getCurrentQuotationDate } from "@/lib/quotation-expiry";
 
 type ServiceType =
   | "UMRAH_VISA"
+  |  "RAWDHA"
   | "HOTEL_ACCOMMODATION"
   | "AIR_TICKET"
   | "TRANSPORTATION";
@@ -72,6 +73,7 @@ type PreparedItem = {
 
 const SERVICE_TYPES = new Set<string>([
   "UMRAH_VISA",
+  "RAWDHA",
   "HOTEL_ACCOMMODATION",
   "AIR_TICKET",
   "TRANSPORTATION",
@@ -147,6 +149,7 @@ export async function POST(request: Request) {
 
     let body: {
   customerId?: unknown;
+  currency?: unknown;
   validUntil?: unknown;
   items?: unknown;
   selectedBankIds?: unknown;
@@ -163,6 +166,22 @@ export async function POST(request: Request) {
     }
 
     const customerId = Number(body.customerId);
+
+    const currencyValue = cleanText(body.currency || "SAR");
+
+const allowedCurrencies = new Set(["SAR", "LKR", "USD"]);
+
+if (!allowedCurrencies.has(currencyValue)) {
+  return NextResponse.json(
+    {
+      success: false,
+      message: "Please select a valid currency: SAR, LKR, or USD.",
+    },
+    { status: 400 }
+  );
+}
+
+const currency = currencyValue as "SAR" | "LKR" | "USD";
 
     const validUntilText =
   typeof body.validUntil === "string"
@@ -225,37 +244,36 @@ if (validUntilText < getCurrentQuotationDate()) {
     }
 
     
-    // Require exactly two different bank accounts.
+    // Bank accounts are optional. A quotation may contain zero, one, or two.
     const selectedBankIds = Array.isArray(body.selectedBankIds)
       ? body.selectedBankIds.map((value) => Number(value))
       : [];
 
     if (
-      selectedBankIds.length !== 2 ||
+      selectedBankIds.length > 2 ||
       selectedBankIds.some(
         (id) => !Number.isInteger(id) || id <= 0
       ) ||
-      new Set(selectedBankIds).size !== 2
+      new Set(selectedBankIds).size !== selectedBankIds.length
     ) {
       return NextResponse.json(
         {
           success: false,
           message:
-            "Select exactly two different bank accounts for this quotation.",
+            "Select up to two different valid bank accounts, or leave them unselected.",
         },
         { status: 400 }
       );
     }
 
-    const selectedBanks =
-      await prisma.quotationBankDetail.findMany({
-        where: {
-          id: { in: selectedBankIds },
-        },
-      });
+    const selectedBanks = selectedBankIds.length
+      ? await prisma.quotationBankDetail.findMany({
+          where: { id: { in: selectedBankIds } },
+        })
+      : [];
 
     if (
-      selectedBanks.length !== 2 ||
+      selectedBanks.length !== selectedBankIds.length ||
       selectedBanks.some(
         (bank) =>
           !bank.bankName.trim() ||
@@ -267,13 +285,14 @@ if (validUntilText < getCurrentQuotationDate()) {
         {
           success: false,
           message:
-            "One or more selected bank accounts are unavailable. Refresh and select two valid accounts.",
+            "One or more selected bank accounts are unavailable. Refresh and choose valid accounts, or leave them unselected.",
         },
         { status: 400 }
       );
     }
 
     // Save values, not database IDs, as historical snapshots.
+    // An empty array intentionally means no bank details were selected.
     const selectedBankSnapshots = selectedBanks
       .sort((a, b) => a.slot - b.slot)
       .map((bank) => ({
@@ -362,6 +381,7 @@ if (validUntilText < getCurrentQuotationDate()) {
 
     const serviceLabels: Record<string, string> = {
       UMRAH_VISA: "Umrah Visa",
+      RAWDHA: "Rawdha",
       HOTEL_ACCOMMODATION: "Hotel Accommodation",
       AIR_TICKET: "Air Ticket",
       TRANSPORTATION: "Transportation",
@@ -506,6 +526,10 @@ if (validUntilText < getCurrentQuotationDate()) {
 
         description = `Umrah Visa - ${visaLabel}`;
       }
+
+      if (serviceType === "RAWDHA") {
+  description = "Rawdha";
+}
 
       if (serviceType === "HOTEL_ACCOMMODATION") {
         hotelName = cleanText(item.hotelName);
@@ -784,19 +808,19 @@ if (validUntilText < getCurrentQuotationDate()) {
 
           if (adult.quantity > 0) {
             breakdown.push(
-              `Adult SAR ${formatMoney(adult.price)} × ${adult.quantity}`
+              `Adult ${currency} ${formatMoney(adult.price)} × ${adult.quantity}`
             );
           }
 
           if (child.quantity > 0) {
             breakdown.push(
-              `Child SAR ${formatMoney(child.price)} × ${child.quantity}`
+              `Child ${currency} ${formatMoney(child.price)} × ${child.quantity}`
             );
           }
 
           if (infant.quantity > 0) {
             breakdown.push(
-              `Infant SAR ${formatMoney(infant.price)} × ${infant.quantity}`
+              `Infant ${currency} ${formatMoney(infant.price)} × ${infant.quantity}`
             );
           }
 
@@ -973,6 +997,7 @@ if (validUntilText < getCurrentQuotationDate()) {
         data: {
           quotationNo: createTemporaryQuotationNo(),
           customerId,
+          currency,
           quotationDate: new Date(),
           validUntil: validUntilDate,
           customerName: customer.name,

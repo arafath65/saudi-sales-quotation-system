@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+	import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit";
@@ -191,6 +191,9 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url);
     const range = parseRange(searchParams.get("range"));
+    const requestedCurrency = (searchParams.get("currency") ?? "SAR").trim().toUpperCase();
+    const currency: "SAR" | "LKR" | "USD" =
+      requestedCurrency === "LKR" || requestedCurrency === "USD" ? requestedCurrency : "SAR";
     const now = new Date();
 
     let start: Date;
@@ -199,14 +202,17 @@ export async function GET(request: Request) {
     if (range === "ALL_TIME") {
       const [firstInvoice, firstPayment, firstQuotation] = await Promise.all([
         prisma.invoice.findFirst({
+          where: { currency },
           orderBy: { invoiceDate: "asc" },
           select: { invoiceDate: true },
         }),
         prisma.payment.findFirst({
+          where: { invoice: { is: { currency } } },
           orderBy: { paymentDate: "asc" },
           select: { paymentDate: true },
         }),
         prisma.quotation.findFirst({
+          where: { currency },
           orderBy: { quotationDate: "asc" },
           select: { quotationDate: true },
         }),
@@ -233,13 +239,16 @@ export async function GET(request: Request) {
     const dateFilter = { gte: start, lt: end };
     const invoiceWhere: Prisma.InvoiceWhereInput = {
       invoiceDate: dateFilter,
+      currency,
       status: { not: InvoiceStatus.CANCELLED },
     };
     const paymentWhere: Prisma.PaymentWhereInput = {
       paymentDate: dateFilter,
+      invoice: { is: { currency } },
     };
     const quotationWhere: Prisma.QuotationWhereInput = {
       quotationDate: dateFilter,
+      currency,
     };
 
     const [
@@ -268,6 +277,7 @@ export async function GET(request: Request) {
       }),
       prisma.invoice.aggregate({
         where: {
+          currency,
           status: { in: [InvoiceStatus.UNPAID, InvoiceStatus.PARTIALLY_PAID] },
           balanceAmount: { gt: 0 },
         },
@@ -301,6 +311,7 @@ export async function GET(request: Request) {
           invoice: {
             is: {
               invoiceDate: dateFilter,
+              currency,
               status: { not: InvoiceStatus.CANCELLED },
             },
           },
@@ -309,6 +320,7 @@ export async function GET(request: Request) {
       }),
       prisma.invoice.findMany({
         where: {
+          currency,
           status: { in: [InvoiceStatus.UNPAID, InvoiceStatus.PARTIALLY_PAID] },
           balanceAmount: { gt: 0 },
         },
@@ -321,6 +333,7 @@ export async function GET(request: Request) {
           customerId: true,
           customerName: true,
           customerMobile: true,
+          currency: true,
           totalAmount: true,
           paidAmount: true,
           balanceAmount: true,
@@ -349,6 +362,7 @@ export async function GET(request: Request) {
               id: true,
               invoiceNo: true,
               customerName: true,
+              currency: true,
               quotation: {
                 select: {
                   customer: {
@@ -374,6 +388,7 @@ export async function GET(request: Request) {
           quotationDate: true,
           customerName: true,
           customerMobile: true,
+          currency: true,
           totalAmount: true,
           customer: {
             select: { iqamaNo: true },
@@ -401,6 +416,7 @@ export async function GET(request: Request) {
 
     const serviceLabels: Record<string, string> = {
       UMRAH_VISA: "Umrah Visa",
+      RAWDHA: "Rawdha",
       HOTEL_ACCOMMODATION: "Hotel Accommodation",
       AIR_TICKET: "Air Ticket",
       TRANSPORTATION: "Transportation",
@@ -419,9 +435,10 @@ export async function GET(request: Request) {
       module: "DASHBOARD",
       action: "VIEW",
       entity: "Dashboard",
-      description: `Viewed sales dashboard for ${periodLabel(range)}.`,
+      description: `Viewed sales dashboard for ${periodLabel(range)} in ${currency}.`,
       metadata: {
         range,
+        currency,
         invoicedCount: invoiceAggregate._count._all,
         paymentCount: paymentAggregate._count._all,
       },
@@ -430,6 +447,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       success: true,
       generatedAt: now.toISOString(),
+      currency,
       period: {
         key: range,
         label: periodLabel(range),

@@ -127,21 +127,10 @@ export async function GET(
       },
     });
 
-    // Iqama is stored on the current Customer record rather than the invoice snapshot.
-    const customerRecord = await prisma.customer.findUnique({
-      where: { id: invoice.customerId },
-      select: {
-        iqamaNo: true,
-        customerCode: true,
-      },
-    });
-
     const customer = {
       id: invoice.customerId,
-      customerCode: customerRecord?.customerCode ?? null,
       name: invoice.customerName,
       mobile: invoice.customerMobile,
-      iqamaNo: customerRecord?.iqamaNo ?? null,
       whatsapp: invoice.customerWhatsapp,
       email: invoice.customerEmail,
       address: invoice.customerAddress,
@@ -257,6 +246,7 @@ export async function POST(
       select: {
         id: true,
         invoiceNo: true,
+        currency: true,
         totalAmount: true,
         paidAmount: true,
         balanceAmount: true,
@@ -290,7 +280,7 @@ export async function POST(
       return NextResponse.json(
         {
           success: false,
-          message: `Payment cannot exceed the current due of SAR ${currentBalance.toFixed(2)}.`,
+          message: `Payment cannot exceed the current due of ${invoiceBeforePayment.currency ?? "SAR"} ${currentBalance.toFixed(2)}.`,
         },
         { status: 400 }
       );
@@ -347,7 +337,7 @@ export async function POST(
       action: "PAYMENT_CREATE",
       entity: "Payment",
       entityId: String(result.payment.id),
-      description: `Recorded SAR ${amount.toFixed(2)} payment for invoice ${invoiceBeforePayment.invoiceNo}.`,
+      description: `Recorded ${invoiceBeforePayment.currency ?? "SAR"} ${amount.toFixed(2)} payment for invoice ${invoiceBeforePayment.invoiceNo}.`,
       metadata: {
         invoiceId: id,
         invoiceNo: invoiceBeforePayment.invoiceNo,

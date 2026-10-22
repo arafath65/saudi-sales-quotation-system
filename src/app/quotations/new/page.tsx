@@ -49,8 +49,11 @@ type Airline = {
   name: string;
   isActive: boolean;
 };
+type Currency = "SAR" | "LKR" | "USD";
+
 type ServiceType =
   | "UMRAH_VISA"
+  | "RAWDHA"
   | "HOTEL_ACCOMMODATION"
   | "AIR_TICKET"
   | "TRANSPORTATION";
@@ -83,6 +86,7 @@ const SERVICE_LABELS: Record<
   string
 > = {
   UMRAH_VISA: "Umrah Visa",
+  RAWDHA: "Rawdha",
   HOTEL_ACCOMMODATION: "Hotel Accommodation",
   AIR_TICKET: "Air Ticket",
   TRANSPORTATION: "Transportation",
@@ -120,7 +124,7 @@ function calculateTicketSubtotal(item: QuotationItem) {
     + (Number(item.childPrice) || 0) * (Number(item.childQuantity) || 0)
     + (Number(item.infantPrice) || 0) * (Number(item.infantQuantity) || 0);
 }
-function buildTicketBreakdown(item: QuotationItem) {
+function buildTicketBreakdown(item: QuotationItem, currency: Currency = "SAR") {
   const parts: string[] = [];
   const categories = [
     { label: "Adult", price: item.adultPrice, quantity: item.adultQuantity },
@@ -130,17 +134,19 @@ function buildTicketBreakdown(item: QuotationItem) {
   for (const category of categories) {
     const quantity = Number(category.quantity) || 0;
     if (quantity > 0) {
-      parts.push(`${category.label}: SAR ${formatMoney(category.price)} × ${formatNumber(quantity)}`);
+      parts.push(
+  `${category.label}: ${currency} ${formatMoney(category.price)} × ${formatNumber(quantity)}`
+);
     }
   }
   return parts.join(" · ");
 }
-function buildTicketDescription(item: QuotationItem) {
+function buildTicketDescription(item: QuotationItem, currency: Currency = "SAR") {
   const ticketLabel = item.ticketType === "RETURN" ? "Return Ticket" : "One Way Ticket";
   const baggageLabel = item.baggageWeightKg.trim() !== ""
     ? `Baggage ${formatNumber(item.baggageWeightKg)} kg`
     : "";
-  const breakdown = buildTicketBreakdown(item);
+  const breakdown = buildTicketBreakdown(item, currency);
   return [item.airlineName.trim(), ticketLabel, baggageLabel, breakdown]
     .filter(Boolean)
     .join(" · ");
@@ -259,6 +265,7 @@ export default function NewQuotationPage() {
   const [airlines, setAirlines] = useState<Airline[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] =
     useState("");
+    const [currency, setCurrency] = useState<Currency>("SAR");
   const [customerSearch, setCustomerSearch] =
     useState("");
   const [showCustomerResults, setShowCustomerResults] =
@@ -666,12 +673,6 @@ if (validUntil < colomboDateInputValue()) {
       setError("Please add at least one service.");
       return;
     }
-    if (quotationOptions.selectedBankIds.length !== 2) {
-  setError(
-    "Please select exactly two bank accounts for this quotation."
-  );
-  return;
-}
     try {
       setSaving(true);
       setError("");
@@ -682,6 +683,7 @@ if (validUntil < colomboDateInputValue()) {
         },
         body: JSON.stringify({
   customerId: Number(selectedCustomerId),
+  currency,
   validUntil,
 
   selectedBankIds: quotationOptions.selectedBankIds,
@@ -735,7 +737,7 @@ if (validUntil < colomboDateInputValue()) {
                 : undefined,
             description:
               item.serviceType === "AIR_TICKET"
-                ? buildTicketDescription(item)
+                ? buildTicketDescription(item, currency)
                 : undefined,
             adultPrice:
               item.serviceType === "AIR_TICKET" && item.adultPrice.trim() !== ""
@@ -852,37 +854,62 @@ if (validUntil < colomboDateInputValue()) {
           </p>
         </div>
         <section className="mt-5 rounded-2xl border border-[#E4E7EC] bg-white p-5 shadow-sm">
-  <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_280px] sm:items-center">
-    <div>
+  <div className="grid gap-5 sm:grid-cols-[minmax(0,1fr)_minmax(0,620px)] sm:items-start">
+    <div className="pt-1">
       <h2 className="text-sm font-bold text-[#1F2933]">
         Quotation Validity
       </h2>
-
-      <p className="mt-1 text-xs text-[#667085]">
-        Select the last date this quotation will be valid.
-      </p>
     </div>
 
-    <div>
-      <label
-        htmlFor="validUntil"
-        className="block text-xs font-semibold text-[#344054]"
-      >
-        Valid Until *
-      </label>
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+  <div>
+    <label
+      htmlFor="currency"
+      className="block text-xs font-semibold text-[#344054]"
+    >
+      Currency *
+    </label>
 
-      <input
-        id="validUntil"
-        type="date"
-        required
-        min={colomboDateInputValue()}
-        value={validUntil}
-        onChange={(event) =>
-          setValidUntil(event.target.value)
-        }
-        className="mt-2 w-full rounded-xl border border-[#D0D5DD] bg-white px-4 py-3 text-sm outline-none focus:border-[#0F6B5B] focus:ring-4 focus:ring-[#0F6B5B]/10"
-      />
-    </div>
+    <select
+      id="currency"
+      value={currency}
+      onChange={(event) =>
+        setCurrency(event.target.value as Currency)
+      }
+      className="mt-2 w-full rounded-xl border border-[#D0D5DD] bg-white px-4 py-3 text-sm outline-none focus:border-[#0F6B5B] focus:ring-4 focus:ring-[#0F6B5B]/10"
+    >
+      <option value="SAR">SAR — Saudi Riyal</option>
+      <option value="LKR">LKR — Sri Lankan Rupee</option>
+      <option value="USD">USD — US Dollar</option>
+    </select>
+
+    <p className="mt-1 text-xs leading-5 text-[#667085]">
+      This quotation uses one currency throughout. No currency conversion is applied.
+    </p>
+  </div>
+
+  <div>
+    <label
+      htmlFor="validUntil"
+      className="block text-xs font-semibold text-[#344054]"
+    >
+      Valid Until *
+    </label>
+
+    <input
+      id="validUntil"
+      type="date"
+      required
+      min={colomboDateInputValue()}
+      value={validUntil}
+      onChange={(event) => setValidUntil(event.target.value)}
+      className="mt-2 w-full rounded-xl border border-[#D0D5DD] bg-white px-4 py-3 text-sm outline-none focus:border-[#0F6B5B] focus:ring-4 focus:ring-[#0F6B5B]/10"
+    />
+    <p className="mt-1 text-xs leading-5 text-[#667085]">
+      Select the last date this quotation will be valid.
+    </p>
+  </div>
+</div>
   </div>
 </section>
         {error && !itemModalOpen && (
@@ -1021,7 +1048,7 @@ if (validUntil < colomboDateInputValue()) {
                       No services added
                     </p>
                     <p className="mt-1 text-xs text-[#98A2B3]">
-                      Add Umrah Visa, Hotel, Air Ticket or
+                      Add Umrah Visa, Rawdha, Hotel, Air Ticket or
                       Transportation.
                     </p>
                   </div>
@@ -1098,7 +1125,7 @@ if (validUntil < colomboDateInputValue()) {
                                   item.baggageWeightKg.trim() !== ""
                                     ? `Baggage ${formatNumber(item.baggageWeightKg)} kg`
                                     : "",
-                                  buildTicketBreakdown(item),
+                                  buildTicketBreakdown(item, currency),
                                 ]
                                   .filter(Boolean)
                                   .join(" · ")}
@@ -1111,7 +1138,7 @@ if (validUntil < colomboDateInputValue()) {
                           </div>
                           <div className="shrink-0 text-left md:text-right">
                             <p className="text-lg font-bold text-[#1F2933]">
-                              SAR{" "}
+                              {currency}{" "}
                               {formatMoney(calculateItemTotal(item))}
                             </p>
                             <p className="mt-1 text-xs text-[#667085]">
@@ -1187,7 +1214,7 @@ if (validUntil < colomboDateInputValue()) {
                     Grand Total
                   </span>
                   <span className="text-2xl font-black text-[#0F6B5B]">
-                    SAR {formatMoney(grandTotal)}
+                    {currency} {formatMoney(grandTotal)}
                   </span>
                 </div>
               </div>
@@ -1274,6 +1301,9 @@ if (validUntil < colomboDateInputValue()) {
               >
                 <option value="UMRAH_VISA">
                   Umrah Visa
+                </option>
+                <option value="RAWDHA">
+                  Rawdha
                 </option>
                 <option value="HOTEL_ACCOMMODATION">
                   Hotel Accommodation
@@ -1570,7 +1600,7 @@ if (validUntil < colomboDateInputValue()) {
                         <h3 className="text-sm font-bold text-[#1F2933]">{category.label}</h3>
                         <div className="mt-3 grid grid-cols-2 gap-2">
                           <div>
-                            <label className="block text-xs font-semibold text-[#667085]">Price (SAR)</label>
+                            <label className="block text-xs font-semibold text-[#667085]">Price ({currency})</label>
                             <input
                               type="number"
                               min="0"
@@ -1632,14 +1662,14 @@ if (validUntil < colomboDateInputValue()) {
                           </div>
                         </div>
                         <p className="mt-2 text-xs text-[#667085]">
-                          Subtotal: SAR {formatMoney((Number(draftItem[category.priceField]) || 0) * (Number(draftItem[category.quantityField]) || 0))}
+                          Subtotal: {currency} {formatMoney((Number(draftItem[category.priceField]) || 0) * (Number(draftItem[category.quantityField]) || 0))}
                         </p>
                       </div>
                     ))}
                   </div>
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div>
-                      <label className="block text-sm font-semibold text-[#1F2933]">Discount (SAR)</label>
+                      <label className="block text-sm font-semibold text-[#1F2933]">Discount ({currency})</label>
                       <input
                         type="number"
                         min="0"
@@ -1668,8 +1698,8 @@ if (validUntil < colomboDateInputValue()) {
                   <div>
                     <label className="flex min-h-[40px] items-end text-sm font-semibold text-[#1F2933]">
                       {draftItem.serviceType === "HOTEL_ACCOMMODATION"
-                        ? "Amount per Room / Day (SAR)"
-                        : "Amount (SAR)"}
+                        ? `Amount per Room / Day (${currency})`
+                        : `Amount (${currency})`}
                     </label>
                     <input
                       type="number"
@@ -1713,7 +1743,7 @@ if (validUntil < colomboDateInputValue()) {
                     />
                   </div>
                   <div>
-                    <label className="flex min-h-[40px] items-end text-sm font-semibold text-[#1F2933]">Discount (SAR)</label>
+                    <label className="flex min-h-[40px] items-end text-sm font-semibold text-[#1F2933]">Discount ({currency})</label>
                     <input
                       type="number"
                       min="0"
@@ -1743,7 +1773,7 @@ if (validUntil < colomboDateInputValue()) {
                     Service Total
                   </span>
                   <span className="text-xl font-black text-[#0F6B5B]">
-                    SAR{" "}
+                    {currency}{" "}
                     {formatMoney(calculateItemTotal(draftItem))}
                   </span>
                 </div>

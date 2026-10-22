@@ -40,6 +40,7 @@ type Props = {
 
 const SERVICE_LABELS: Record<string, string> = {
   UMRAH_VISA: "Umrah Visa",
+  RAWDHA: "Rawdha",
   HOTEL_ACCOMMODATION: "Hotel Accommodation",
   AIR_TICKET: "Air Ticket",
   TRANSPORTATION: "Transportation",
@@ -125,7 +126,7 @@ export default function QuotationBankTermsSelector({
     const selected = value.selectedBankIds;
 
     if (checked && selected.length >= 2) {
-      setSelectionError("Select only two bank accounts for one quotation.");
+      setSelectionError("Select up to two bank accounts for one quotation.");
       return;
     }
 
@@ -164,8 +165,8 @@ export default function QuotationBankTermsSelector({
           </h2>
 
           <p className="mt-1 text-sm leading-5 text-[#667085]">
-            Choose exactly two saved bank accounts and select the relevant
-            terms for each service type in this quotation.
+            Bank details are optional. Choose up to two saved bank accounts,
+            and select the relevant terms for each service type in this quotation.
           </p>
         </div>
 
@@ -198,12 +199,12 @@ export default function QuotationBankTermsSelector({
 
           <span
             className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${
-              value.selectedBankIds.length === 2
+              value.selectedBankIds.length > 0
                 ? "bg-emerald-50 text-emerald-700"
-                : "bg-amber-50 text-amber-800"
+                : "bg-gray-100 text-gray-600"
             }`}
           >
-            {value.selectedBankIds.length} of 2 selected
+            {value.selectedBankIds.length} selected · optional
           </span>
         </div>
 
