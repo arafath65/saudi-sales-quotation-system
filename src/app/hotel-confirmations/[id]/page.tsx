@@ -268,16 +268,244 @@ export default function HotelConfirmationReceiptPage() {
   return (
     <>
       <style jsx global>{`
-        @page { size: A4 portrait; margin: 10mm; }
+        /* Hotel confirmations are compact, client-facing temporary receipts. */
+        @page { size: A5 portrait; margin: 5mm; }
+
         @media print {
-          html, body { background: #fff !important; margin: 0 !important; padding: 0 !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+          html,
+          body {
+            width: 100% !important;
+            min-height: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #fff !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+
+          body { font-size: 8pt !important; }
           .print-hidden { display: none !important; }
-          .hotel-receipt { width: 100% !important; max-width: none !important; border: none !important; border-radius: 0 !important; box-shadow: none !important; margin: 0 !important; }
-          .hotel-receipt section { break-inside: avoid; }
+
+          .hotel-receipt-print-shell {
+            display: block !important;
+            width: 100% !important;
+            max-width: none !important;
+            min-height: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #fff !important;
+          }
+
+          .hotel-receipt {
+            box-sizing: border-box !important;
+            width: 100% !important;
+            max-width: none !important;
+            overflow: visible !important;
+            margin: 0 !important;
+            border: none !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+            color: #1F2933 !important;
+            font-size: 8pt !important;
+          }
+
+          /* Compact, two-column masthead: don't let the header consume a page. */
+          .hotel-receipt > header {
+            padding: 3mm !important;
+            border-bottom-width: 1mm !important;
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+          }
+
+          .hotel-receipt > header > div {
+            display: flex !important;
+            flex-direction: row !important;
+            align-items: flex-start !important;
+            justify-content: space-between !important;
+            gap: 3mm !important;
+          }
+
+          .hotel-receipt > header > div > div:first-child {
+            flex: 1 1 52% !important;
+            min-width: 0 !important;
+          }
+
+          .hotel-receipt > header > div > div:last-child {
+            flex: 1 1 48% !important;
+            min-width: 0 !important;
+            text-align: right !important;
+          }
+
+          .hotel-receipt > header img {
+            width: auto !important;
+            max-width: 22mm !important;
+            height: auto !important;
+            max-height: 10mm !important;
+            object-fit: contain !important;
+          }
+
+          .hotel-receipt > header h1 {
+            margin-top: 1.5mm !important;
+            font-size: 11pt !important;
+            line-height: 1.15 !important;
+          }
+
+          .hotel-receipt > header h2 {
+            margin-top: 1mm !important;
+            font-size: 12pt !important;
+            line-height: 1.15 !important;
+          }
+
+          .hotel-receipt > header p,
+          .hotel-receipt > header .space-y-1 {
+            margin-top: 1mm !important;
+            font-size: 6.5pt !important;
+            line-height: 1.25 !important;
+          }
+
+          .hotel-receipt > header span {
+            margin-top: 1.5mm !important;
+            padding: 1mm 2mm !important;
+            font-size: 6pt !important;
+          }
+
+          /* CRITICAL: the whole content section must flow after the header.
+             Avoiding a break on this parent was pushing ALL content to page 2. */
+          .hotel-receipt > section {
+            display: block !important;
+            padding: 3mm !important;
+            margin: 0 !important;
+            break-inside: auto !important;
+            page-break-inside: auto !important;
+          }
+
+          .hotel-receipt > section > div,
+          .hotel-receipt > section > section {
+            margin-top: 2.5mm !important;
+          }
+
+          .hotel-receipt > section > div:first-child {
+            margin-top: 0 !important;
+          }
+
+          .hotel-receipt .rounded-xl {
+            border-radius: 2mm !important;
+          }
+
+          .hotel-receipt > section > div:first-child {
+            padding: 2.5mm !important;
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+          }
+
+          .hotel-receipt > section > div:first-child h3 {
+            margin-top: 1mm !important;
+            font-size: 10pt !important;
+            line-height: 1.2 !important;
+          }
+
+          .hotel-receipt > section > div:first-child > div {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            gap: 1.5mm 3mm !important;
+            margin-top: 1.5mm !important;
+          }
+
+          .hotel-receipt > section > div:first-child > div p {
+            font-size: 7pt !important;
+            line-height: 1.25 !important;
+            overflow-wrap: anywhere !important;
+          }
+
+          /* Hotel details table: two narrow columns with less padding. */
+          .hotel-receipt > section > div:nth-child(2) {
+            break-inside: auto !important;
+            page-break-inside: auto !important;
+            overflow: visible !important;
+          }
+
+          .hotel-receipt > section > div:nth-child(2) > div:first-child {
+            padding: 2mm 2.5mm !important;
+            font-size: 7pt !important;
+          }
+
+          .hotel-receipt > section > div:nth-child(2) > div:nth-child(2) {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            gap: 0.3mm !important;
+          }
+
+          .hotel-receipt > section > div:nth-child(2) > div:nth-child(2) > div {
+            padding: 1.8mm 2.2mm !important;
+            min-width: 0 !important;
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+          }
+
+          .hotel-receipt > section > div:nth-child(2) p {
+            line-height: 1.2 !important;
+          }
+
+          .hotel-receipt > section > div:nth-child(2) p:first-child {
+            font-size: 6.2pt !important;
+          }
+
+          .hotel-receipt > section > div:nth-child(2) p:last-child {
+            margin-top: 0.8mm !important;
+            font-size: 8pt !important;
+          }
+
+          /* Booking amount and terms are compact, but may flow if genuinely long. */
+          .hotel-receipt > section > div:nth-child(3),
+          .hotel-receipt > section > section {
+            padding: 2.5mm !important;
+            break-inside: auto !important;
+            page-break-inside: auto !important;
+          }
+
+          .hotel-receipt > section > div:nth-child(3) h3,
+          .hotel-receipt > section > section h3 {
+            font-size: 8pt !important;
+          }
+
+          .hotel-receipt > section > div:nth-child(3) > div {
+            margin-top: 1.5mm !important;
+            gap: 1mm !important;
+            font-size: 7.5pt !important;
+          }
+
+          .hotel-receipt > section > div:nth-child(3) > div > div:last-child {
+            padding-top: 1.5mm !important;
+          }
+
+          .hotel-receipt > section > section > div {
+            margin-top: 1.5mm !important;
+            gap: 2mm !important;
+          }
+
+          .hotel-receipt > section > section p {
+            font-size: 7pt !important;
+            line-height: 1.3 !important;
+          }
+
+          .hotel-receipt > footer {
+            padding: 2.5mm 3mm !important;
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+          }
+
+          .hotel-receipt > footer p:first-child {
+            font-size: 7pt !important;
+            line-height: 1.25 !important;
+          }
+
+          .hotel-receipt > footer p:last-child {
+            margin-top: 1mm !important;
+            font-size: 6pt !important;
+            line-height: 1.2 !important;
+          }
         }
       `}</style>
 
-      <main className="min-h-screen bg-[#F7F8F6] p-4 sm:p-8">
+      <main className="hotel-receipt-print-shell min-h-screen bg-[#F7F8F6] p-4 sm:p-8">
         <div className="print-hidden mx-auto mb-5 flex max-w-4xl flex-wrap justify-end gap-3">
           <button type="button" onClick={() => router.push(`/quotations/${confirmation.quotationId}`)} className="rounded-xl border border-[#D0D5DD] bg-white px-4 py-2.5 text-sm font-bold text-[#344054]">Open quotation</button>
           <button type="button" onClick={() => window.print()} className="rounded-xl bg-[#0F6B5B] px-5 py-2.5 text-sm font-bold text-white">Print / Save PDF</button>
@@ -298,8 +526,8 @@ export default function HotelConfirmationReceiptPage() {
                 </div>
               </div>
               <div className="sm:text-right">
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-[#C9A227]">Hotel Booking</p>
-                <h2 className="mt-1 text-2xl font-black text-[#0F6B5B]">Confirmation Receipt</h2>
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-[#C9A227]">Temporary Hotel Booking</p>
+                <h2 className="mt-1 text-2xl font-black text-[#0F6B5B]">Confirmation</h2>
                 <p className="mt-2 text-sm font-black text-[#1F2933]">{confirmation.receiptNo}</p>
                 <p className="mt-1 text-xs text-[#667085]">Quotation: {confirmation.quotation?.quotationNo || `#${confirmation.quotationId}`}</p>
                 <span className={`mt-3 inline-flex rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-wider ${confirmation.status === "DEFINITE" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>{statusLabel}</span>
@@ -375,8 +603,8 @@ export default function HotelConfirmationReceiptPage() {
           </section>
 
           <footer className="border-t border-[#E4E7EC] bg-[#FAFAF8] px-6 py-5 text-center sm:px-8">
-            <p className="text-xs text-[#667085]">Please present this confirmation when contacting the hotel or checking in.</p>
-            <p className="mt-1 text-[10px] text-[#98A2B3]">Generated from quotation {confirmation.quotation?.quotationNo || confirmation.quotationId}.</p>
+            <p className="text-xs font-semibold text-[#667085]">Temporary hotel booking confirmation, issued according to your request.</p>
+            <p className="mt-1 text-[10px] text-[#98A2B3]">Booking reference: {confirmation.hotelConfirmationNumber} · Quotation {confirmation.quotation?.quotationNo || confirmation.quotationId}.</p>
           </footer>
         </article>
 
