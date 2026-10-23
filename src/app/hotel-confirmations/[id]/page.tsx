@@ -651,7 +651,6 @@ export default function HotelConfirmationReceiptPage() {
                 </div>
               </div>
             )}
-
             <label className="block text-xs font-bold text-[#344054]">Notes
               <textarea rows={3} value={notesDraft} onChange={(event) => setNotesDraft(event.target.value)} className="mt-1.5 w-full rounded-xl border border-[#D0D5DD] px-3 py-3 text-sm font-normal outline-none focus:border-[#0F6B5B]" />
             </label>

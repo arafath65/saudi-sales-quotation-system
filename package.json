@@ -10,8 +10,8 @@
     "lint": "eslint",
     "desktop": "electron .",
     "icon:build": "node scripts/make-icon.cjs",
-    "desktop:prepare": "npm run build && node scripts/prepare-desktop.cjs",
-    "desktop:dist": "npm run icon:build && npm run desktop:prepare && electron-builder --win nsis"
+    "desktop:prepare": "node scripts/clean-desktop-build.cjs && npm run build && node scripts/prepare-desktop.cjs",
+"desktop:dist": "npm run icon:build && npm run desktop:prepare && electron-builder --win nsis"
   },
   "dependencies": {
     "@prisma/adapter-mariadb": "^7.10.1",
