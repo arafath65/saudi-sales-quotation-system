@@ -46,6 +46,7 @@ enum QuotationStatus {
   ACCEPTED
   REJECTED
   CANCELLED
+  EXPIRED
 }
 
 enum InvoiceStatus {
@@ -188,7 +189,17 @@ model QuotationItem {
   paxCount   Int?
   acType     AcType?
   boardType  BoardType?
+  roomType     String?
+  numberOfDays Int?
   ticketType TicketType?
+  adultPrice     Decimal? @db.Decimal(12, 2)
+adultQuantity  Int?
+childPrice     Decimal? @db.Decimal(12, 2)
+childQuantity  Int?
+infantPrice    Decimal? @db.Decimal(12, 2)
+infantQuantity Int?
+airlineName     String?  @db.VarChar(100)
+baggageWeightKg Decimal? @db.Decimal(6, 2)
 
   routeId       Int?
   vehicleTypeId Int?
@@ -267,6 +278,16 @@ model InvoiceItem {
   paxCount  Int?
   acType    AcType?
   boardType BoardType?
+  roomType     String?
+  numberOfDays Int?
+  adultPrice     Decimal? @db.Decimal(12, 2)
+adultQuantity  Int?
+childPrice     Decimal? @db.Decimal(12, 2)
+childQuantity  Int?
+infantPrice    Decimal? @db.Decimal(12, 2)
+infantQuantity Int?
+airlineName     String?  @db.VarChar(100)
+baggageWeightKg Decimal? @db.Decimal(6, 2)
 
   ticketType TicketType?
 
@@ -355,3 +376,33 @@ model AuditLog {
   @@index([action])
   @@index([createdAt])
 }
+
+
+model HotelRoomType {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique @db.VarChar(100)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model HotelStayDuration {
+  id        Int      @id @default(autoincrement())
+  days      Int      @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive, days])
+}
+
+model Airline {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique @db.VarChar(100)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive, name])
+}
+

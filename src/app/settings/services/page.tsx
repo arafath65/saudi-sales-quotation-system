@@ -9,6 +9,8 @@ import {
   useState,
 } from "react";
 import { gsap } from "gsap";
+import HotelOptionsSettings from "@/components/services/HotelOptionsSettings";
+import AirlineOptionsSettings from "@/components/services/AirlineOptionsSettings";
 
 type Route = {
   id: number;
@@ -912,9 +914,9 @@ const displayedVehicles = useMemo(() => {
                 <select
                   value={vehicleStatus}
                   onChange={(event) => {
-  setVehicleStatus(event.target.value as StatusFilter);
-  setVehiclePage(1);
-}}
+            setVehicleStatus(event.target.value as StatusFilter);
+            setVehiclePage(1);
+          }}
                   className="w-32 rounded-xl border border-[#D0D5DD] bg-white px-3 py-2.5 text-xs outline-none focus:border-[#0F6B5B]"
                 >
                   <option value="ALL">All</option>
@@ -1033,6 +1035,16 @@ const displayedVehicles = useMemo(() => {
               </div>
             )}
           </section>
+        </div>
+
+        {/* AIRLINE SETTINGS */}
+<div className="mt-6">
+  <AirlineOptionsSettings />
+</div>
+
+        {/* HOTEL SETTINGS */}
+        <div className="mt-6">
+          <HotelOptionsSettings />
         </div>
       </div>
 

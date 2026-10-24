@@ -18,6 +18,8 @@ type Quotation = {
   id: number;
   quotationNo: string;
   quotationDate: string;
+  validUntil: string | null;
+  
   customerId?: number;
   customerName: string;
   customerMobile: string;
@@ -452,9 +454,20 @@ export default function QuotationPreviewPage() {
                 </p>
 
                 <p className="mt-2 text-xs text-[#667085]">
-                  Date:{" "}
-                  {new Date(quotation.quotationDate).toLocaleDateString()}
-                </p>
+  Date:{" "}
+  {new Date(
+    quotation.quotationDate
+  ).toLocaleDateString("en-GB")}
+</p>
+
+{quotation.validUntil && (
+  <p className="mt-1 text-xs font-semibold text-[#344054]">
+    Valid Until:{" "}
+    {new Date(
+      `${String(quotation.validUntil).slice(0, 10)}T00:00:00`
+    ).toLocaleDateString("en-GB")}
+  </p>
+)}
               </div>
             </div>
           </header>
@@ -492,22 +505,22 @@ export default function QuotationPreviewPage() {
               <table className="w-full text-sm quotation-items-table">
                 <thead className="bg-[#0F6B5B] text-white">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-bold">
-                      Service
-                    </th>
-                    <th className="px-4 py-3 text-center text-xs font-bold">
-                      Qty
-                    </th>
-                    <th className="px-4 py-3 text-right text-xs font-bold">
-                      Amount
-                    </th>
-                    <th className="px-4 py-3 text-right text-xs font-bold">
-                      Discount
-                    </th>
-                    <th className="px-4 py-3 text-right text-xs font-bold">
-                      Total
-                    </th>
-                  </tr>
+  <th className="px-4 py-3 text-left text-xs font-bold">
+    Service
+  </th>
+
+  <th className="px-4 py-3 text-center text-xs font-bold">
+    Qty
+  </th>
+
+  <th className="px-4 py-3 text-right text-xs font-bold">
+    Amount
+  </th>
+
+  <th className="px-4 py-3 text-right text-xs font-bold">
+    Total
+  </th>
+</tr>
                 </thead>
 
                 <tbody>
@@ -532,10 +545,6 @@ export default function QuotationPreviewPage() {
 
                       <td className="px-4 py-4 text-right text-[#667085]">
                         SAR {money(item.amount)}
-                      </td>
-
-                      <td className="px-4 py-4 text-right text-[#667085]">
-                        SAR {money(item.discount)}
                       </td>
 
                       <td className="px-4 py-4 text-right font-bold text-[#1F2933]">

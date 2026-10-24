@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit";
 import { QuotationStatus } from "@/generated/prisma/client";
+import { expireOverdueQuotations } from "@/lib/quotation-expiry";
 
 export const dynamic = "force-dynamic";
 
@@ -73,6 +74,8 @@ export async function PATCH(
       );
     }
 
+    await expireOverdueQuotations();
+
     const existing = await prisma.quotation.findUnique({
       where: { id },
       select: {
@@ -99,6 +102,17 @@ export async function PATCH(
         { status: 404 }
       );
     }
+
+    if (existing.status === QuotationStatus.EXPIRED) {
+  return NextResponse.json(
+    {
+      success: false,
+      message:
+        "This quotation has expired and cannot be accepted or rejected.",
+    },
+    { status: 409 }
+  );
+}
 
     if (existing.status === QuotationStatus.CANCELLED) {
       return NextResponse.json(

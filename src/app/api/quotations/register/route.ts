@@ -7,6 +7,7 @@ import {
   Prisma,
   QuotationStatus,
 } from "@/generated/prisma/client";
+import { expireOverdueQuotations } from "@/lib/quotation-expiry";
 
 export const dynamic = "force-dynamic";
 
@@ -77,6 +78,8 @@ export async function GET(request: Request) {
         },
       };
     }
+
+    await expireOverdueQuotations();
 
     const quotations = await prisma.quotation.findMany({
       where,

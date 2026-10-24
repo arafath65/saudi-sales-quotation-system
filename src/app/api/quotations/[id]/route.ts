@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit";
+import { expireOverdueQuotations } from "@/lib/quotation-expiry";
 
 export const dynamic =
   "force-dynamic";
@@ -52,6 +53,8 @@ export async function GET(
         { status: 400 }
       );
     }
+
+    await expireOverdueQuotations();
 
     const quotation =
       await prisma.quotation.findUnique({

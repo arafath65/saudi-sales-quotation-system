@@ -7,6 +7,7 @@ import {
   Prisma,
   QuotationStatus,
 } from "@/generated/prisma/client";
+import { expireOverdueQuotations } from "@/lib/quotation-expiry";
 
 export const dynamic = "force-dynamic";
 
@@ -14,13 +15,11 @@ function money(
   value: Prisma.Decimal | number | string | null | undefined
 ) {
   const number = Number(value ?? 0);
-
   return Number.isFinite(number) ? number : 0;
 }
 
 function formatInvoiceNumber(sequence: number) {
   const year = new Date().getFullYear();
-
   return `INV-${year}-${String(sequence).padStart(5, "0")}`;
 }
 
@@ -39,10 +38,14 @@ function buildItemDescription(item: {
   serviceType: string;
   visaType: string | null;
   hotelName: string | null;
+  roomType?: string | null;
+  numberOfDays?: number | null;
   paxCount: number | null;
   acType: string | null;
   boardType: string | null;
   ticketType: string | null;
+  airlineName?: string | null;
+  baggageWeightKg?: Prisma.Decimal | number | string | null;
   route?: { name: string } | null;
   vehicleType?: {
     name: string;
@@ -67,11 +70,17 @@ function buildItemDescription(item: {
       break;
 
     case "HOTEL_ACCOMMODATION":
-      if (item.hotelName) {
-        parts.push(item.hotelName);
-      }
+      if (item.hotelName) parts.push(item.hotelName);
+      if (item.roomType) parts.push(item.roomType);
 
-      if (item.paxCount) {
+      if (item.numberOfDays) {
+        parts.push(
+          `${item.numberOfDays} ${
+            item.numberOfDays === 1 ? "day" : "days"
+          }`
+        );
+      } else if (item.paxCount) {
+        // Compatibility fallback for historical hotel items.
         parts.push(`${item.paxCount} Pax`);
       }
 
@@ -85,11 +94,26 @@ function buildItemDescription(item: {
       break;
 
     case "AIR_TICKET":
+      if (item.airlineName) {
+        parts.push(item.airlineName);
+      }
+
       parts.push(
         item.ticketType === "RETURN"
           ? "Return Ticket"
           : "One Way Ticket"
       );
+
+      if (
+        item.baggageWeightKg !== undefined &&
+        item.baggageWeightKg !== null
+      ) {
+        const baggage = money(item.baggageWeightKg)
+          .toFixed(2)
+          .replace(/\.00$/, "");
+
+        parts.push(`Baggage ${baggage} kg`);
+      }
       break;
 
     case "TRANSPORTATION":
@@ -125,7 +149,6 @@ export async function GET(request: Request) {
     }
 
     const { searchParams } = new URL(request.url);
-
     const search = searchParams.get("search")?.trim() ?? "";
     const status = searchParams.get("status")?.trim() ?? "";
 
@@ -249,6 +272,7 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+    await expireOverdueQuotations();
 
     const quotation = await prisma.quotation.findUnique({
       where: {
@@ -388,7 +412,7 @@ export async function POST(request: Request) {
 
         createdById: userId,
 
-        // Copy the quotation's services into invoice items.
+        // Copy all quotation services, including ticket details.
         items: {
           create: quotation.items.map((item) => ({
             serviceType: item.serviceType,
@@ -396,10 +420,21 @@ export async function POST(request: Request) {
 
             visaType: item.visaType,
             hotelName: item.hotelName,
+            roomType: item.roomType,
+            numberOfDays: item.numberOfDays,
             paxCount: item.paxCount,
             acType: item.acType,
             boardType: item.boardType,
             ticketType: item.ticketType,
+            airlineName: item.airlineName,
+            baggageWeightKg: item.baggageWeightKg,
+
+            adultPrice: item.adultPrice,
+            adultQuantity: item.adultQuantity,
+            childPrice: item.childPrice,
+            childQuantity: item.childQuantity,
+            infantPrice: item.infantPrice,
+            infantQuantity: item.infantQuantity,
 
             routeId: item.routeId,
             vehicleTypeId: item.vehicleTypeId,
@@ -408,7 +443,6 @@ export async function POST(request: Request) {
             quantity: item.quantity,
             discount: item.discount,
             totalAmount: item.totalAmount,
-
             sortOrder: item.sortOrder,
           })),
         },

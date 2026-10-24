@@ -26,23 +26,23 @@ const ALLOWED_TYPES = new Set([
   "image/svg+xml",
 ]);
 
-function parseSlot(
-  value: FormDataEntryValue | null
-): LogoSlot | null {
-  if (typeof value !== "string") {
-    return null;
+
+function parseSlot(value: unknown): LogoSlot | null {
+  if (value === 1 || value === "1") {
+    return 1;
   }
 
-  if (
-    value === "1" ||
-    value === "2" ||
-    value === "3"
-  ) {
-    return Number(value) as LogoSlot;
+  if (value === 2 || value === "2") {
+    return 2;
+  }
+
+  if (value === 3 || value === "3") {
+    return 3;
   }
 
   return null;
 }
+
 
 function getLogoField(
   slot: LogoSlot
