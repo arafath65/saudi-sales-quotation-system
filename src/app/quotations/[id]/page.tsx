@@ -1,7 +1,8 @@
 
 "use client";
 
-import Image from "next/image";
+
+import CompanyDocumentHeader from "@/components/documents/CompanyDocumentHeader";
 import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import QuotationBankTermsFooter from "@/components/quotations/QuotationBankTermsFooter";
@@ -49,12 +50,7 @@ type Quotation = {
   customerId?: number;
   customerName: string;
   customerMobile: string;
-  customerIqamaNo?: string | null;
-  customer?: {
-    id?: number;
-    iqamaNo?: string | null;
-  } | null;
-  customerWhatsapp: string | null;
+customerWhatsapp: string | null;
   customerEmail: string | null;
   customerAddress: string | null;
   totalAmount: string;
@@ -77,12 +73,6 @@ type Company = {
   logo2Path: string | null;
   logo3Path: string | null;
 };
-
-function logoUrl(path: string | null) {
-  if (!path) return null;
-
-  return `/api/company-settings/logo/${encodeURIComponent(path)}`;
-}
 
 function money(value: string | number | null | undefined) {
   const amount = Number(value ?? 0);
@@ -126,35 +116,7 @@ export default function QuotationPreviewPage() {
         throw new Error(data.message ?? "Unable to load quotation.");
       }
 
-      let customerIqamaNo: string | null =
-        data.quotation.customerIqamaNo ??
-        data.quotation.customer?.iqamaNo ??
-        null;
-
-      const customerId =
-        data.quotation.customerId ?? data.quotation.customer?.id;
-
-      if (!customerIqamaNo && customerId) {
-        try {
-          const customerResponse = await fetch(
-            `/api/customers/${customerId}`,
-            { cache: "no-store" }
-          );
-
-          const customerData = await customerResponse.json();
-
-          if (customerResponse.ok && customerData.success) {
-            customerIqamaNo = customerData.customer?.iqamaNo ?? null;
-          }
-        } catch (customerError) {
-          console.error("Unable to load customer Iqama:", customerError);
-        }
-      }
-
-      setQuotation({
-        ...data.quotation,
-        customerIqamaNo,
-      });
+      setQuotation(data.quotation);
 
       setCompany(data.company);
       setError("");
@@ -319,12 +281,7 @@ export default function QuotationPreviewPage() {
       </main>
     );
   }
-
-  const logo1 = logoUrl(company?.logo1Path ?? null);
-  const logo2 = logoUrl(company?.logo2Path ?? null);
-  const logo3 = logoUrl(company?.logo3Path ?? null);
-
-  return (
+return (
     <>
       <style jsx global>{`
         @page {
@@ -455,11 +412,17 @@ export default function QuotationPreviewPage() {
             padding: 4mm 0 !important;
           }
 
-          .quotation-page img {
+          .quotation-page img:not(.company-document-logo) {
             max-height: 16mm !important;
             max-width: 34mm !important;
             object-fit: contain !important;
           }
+
+          .quotation-page .company-document-logo {
+  max-height: 45mm !important;
+  max-width: 85mm !important;
+  object-fit: contain !important;
+}
 
           /*
            * Let the quotation flow naturally across pages.
@@ -559,63 +522,8 @@ export default function QuotationPreviewPage() {
 
         <article className="quotation-page mx-auto max-w-4xl overflow-hidden rounded-2xl border border-[#E4E7EC] bg-white shadow-xl">
           {/* HEADER */}
-          <header className="border-b-4 border-[#0F6B5B] p-6 sm:p-8">
-            <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <div className="flex items-center gap-3">
-                  {logo1 && (
-                    <Image
-                      src={logo1}
-                      alt="Logo 1"
-                      width={140}
-                      height={64}
-                      unoptimized
-                      className="h-16 w-auto max-w-[140px] object-contain"
-                    />
-                  )}
-
-                  {logo2 && (
-                    <Image
-                      src={logo2}
-                      alt="Logo 2"
-                      width={140}
-                      height={64}
-                      unoptimized
-                      className="h-16 max-w-[140px] object-contain"
-                    />
-                  )}
-
-                  {logo3 && (
-                    <Image
-                      src={logo3}
-                      alt="Logo 3"
-                      width={140}
-                      height={64}
-                      unoptimized
-                      className="h-16 max-w-[140px] object-contain"
-                    />
-                  )}
-                </div>
-
-                <h1 className="mt-5 text-2xl font-black text-[#1F2933]">
-                  {company?.companyName || "Company Name"}
-                </h1>
-
-                {company?.address && (
-                  <p className="mt-2 max-w-md whitespace-pre-line text-xs leading-5 text-[#667085]">
-                    {company.address}
-                  </p>
-                )}
-
-                <div className="mt-2 space-y-1 text-xs text-[#667085]">
-                  {company?.phone && <p>{company.phone}</p>}
-                  {company?.email && <p>{company.email}</p>}
-                  {company?.website && <p>{company.website}</p>}
-                </div>
-              </div>
-
-              <div className="sm:text-right">
-                <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#C9A227]">
+          <CompanyDocumentHeader company={company}>
+<p className="text-xs font-bold uppercase tracking-[0.2em] text-[#C9A227]">
                   Quotation
                 </p>
 
@@ -638,9 +546,7 @@ export default function QuotationPreviewPage() {
                     ).toLocaleDateString("en-GB")}
                   </p>
                 )}
-              </div>
-            </div>
-          </header>
+          </CompanyDocumentHeader>
 
           {/* CUSTOMER AND QUOTATION ITEMS */}
           <section className="p-6 sm:p-8">
@@ -654,12 +560,6 @@ export default function QuotationPreviewPage() {
               </h2>
 
               <div className="mt-3 grid gap-2 text-xs text-[#667085] sm:grid-cols-2">
-                <p>
-                  <span className="font-semibold text-[#344054]">
-                    Iqama Number:
-                  </span>{" "}
-                  {quotation.customerIqamaNo || "—"}
-                </p>
 
                 <p>
                   <span className="font-semibold text-[#344054]">

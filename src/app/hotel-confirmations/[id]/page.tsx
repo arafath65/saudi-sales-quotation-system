@@ -1,6 +1,7 @@
 "use client";
 
-import Image from "next/image";
+
+import CompanyDocumentHeader from "@/components/documents/CompanyDocumentHeader";
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { useParams, useRouter } from "next/navigation";
 
@@ -72,11 +73,6 @@ type HotelConfirmation = {
   };
   createdBy?: { id: number; name: string };
 };
-
-function logoUrl(path: string | null | undefined) {
-  if (!path) return null;
-  return `/api/company-settings/logo/${encodeURIComponent(path)}`;
-}
 
 function money(value: string | number | null | undefined) {
   const amount = Number(value ?? 0);
@@ -261,8 +257,6 @@ export default function HotelConfirmationReceiptPage() {
       </main>
     );
   }
-
-  const logo1 = logoUrl(company?.logo1Path);
   const statusLabel = confirmation.status === "DEFINITE" ? "Definite Confirmation" : "Tentative Confirmation";
 
   return (
@@ -336,13 +330,19 @@ export default function HotelConfirmationReceiptPage() {
             text-align: right !important;
           }
 
-          .hotel-receipt > header img {
+          .hotel-receipt > header img:not(.company-document-logo) {
             width: auto !important;
             max-width: 22mm !important;
             height: auto !important;
             max-height: 10mm !important;
             object-fit: contain !important;
           }
+
+          .hotel-receipt > header .company-document-logo {
+  max-width: 68mm !important;
+  max-height: 32mm !important;
+  object-fit: contain !important;
+}
 
           .hotel-receipt > header h1 {
             margin-top: 1.5mm !important;
@@ -512,28 +512,13 @@ export default function HotelConfirmationReceiptPage() {
         </div>
 
         <article className="hotel-receipt mx-auto max-w-4xl overflow-hidden rounded-2xl border border-[#E4E7EC] bg-white shadow-xl">
-          <header className="border-b-4 border-[#0F6B5B] p-6 sm:p-8">
-            <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                {logo1 && <Image src={logo1} alt="Company logo" width={160} height={72} unoptimized className="h-16 w-auto max-w-[160px] object-contain" />}
-                <h1 className="mt-3 text-2xl font-black text-[#1F2933]">{company?.companyName || "Company Name"}</h1>
-                {company?.address && <p className="mt-2 max-w-md whitespace-pre-line text-xs leading-5 text-[#667085]">{company.address}</p>}
-                <div className="mt-2 space-y-1 text-xs text-[#667085]">
-                  {company?.phone && <p>{company.phone}</p>}
-                  {company?.email && <p>{company.email}</p>}
-                  {company?.website && <p>{company.website}</p>}
-                  {company?.taxNumber && <p>Tax / VAT No: {company.taxNumber}</p>}
-                </div>
-              </div>
-              <div className="sm:text-right">
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-[#C9A227]">Temporary Hotel Booking</p>
+          <CompanyDocumentHeader company={company}>
+<p className="text-xs font-black uppercase tracking-[0.18em] text-[#C9A227]">Temporary Hotel Booking</p>
                 <h2 className="mt-1 text-2xl font-black text-[#0F6B5B]">Confirmation</h2>
                 <p className="mt-2 text-sm font-black text-[#1F2933]">{confirmation.receiptNo}</p>
                 <p className="mt-1 text-xs text-[#667085]">Quotation: {confirmation.quotation?.quotationNo || `#${confirmation.quotationId}`}</p>
                 <span className={`mt-3 inline-flex rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-wider ${confirmation.status === "DEFINITE" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>{statusLabel}</span>
-              </div>
-            </div>
-          </header>
+          </CompanyDocumentHeader>
 
           <section className="p-6 sm:p-8">
             <div className="rounded-xl border border-[#E4E7EC] bg-[#FAFAF8] p-5">

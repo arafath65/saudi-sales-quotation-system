@@ -1,5 +1,7 @@
 "use client";
 
+
+import CompanyDocumentHeader from "@/components/documents/CompanyDocumentHeader";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 
@@ -147,12 +149,6 @@ function formatDate(value: string | null | undefined) {
     month: "short",
     year: "numeric",
   }).format(date);
-}
-
-function logoUrl(path: string | null | undefined) {
-  if (!path) return null;
-  const filename = path.split(/[\\/]/).pop();
-  return filename ? `/api/company-settings/logo/${encodeURIComponent(filename)}` : null;
 }
 
 function getServiceDescription(item: InvoiceItem) {
@@ -449,11 +445,6 @@ export default function InvoicePage() {
     );
   }
 
-  const receiptLogo = logoUrl(company?.logo1Path);
-  const logos = [company?.logo1Path, company?.logo2Path, company?.logo3Path]
-    .map(logoUrl)
-    .filter((value): value is string => Boolean(value));
-
   const receiptPayment = invoice.payments.find(
     (payment) => payment.id === receiptPaymentId
   ) ?? null;
@@ -486,40 +477,11 @@ export default function InvoicePage() {
       <div className="payment-receipt-print-only">
         {receiptPayment && (
           <div className="mx-auto max-w-xl p-10 text-[#1F2933]">
-            <div className="flex items-center gap-5 border-b-4 border-[#0F6B5B] pb-6">
-  {receiptLogo && (
-    <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-xl border border-[#E4E7EC] bg-white p-2">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={receiptLogo}
-        alt="Company logo"
-        className="max-h-full max-w-full object-contain"
-      />
-    </div>
-  )}
-
-  <div className="min-w-0 flex-1 text-center">
-    <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#C9A227]">
-      Payment Receipt
-    </p>
-
-    <h1 className="mt-2 text-2xl font-black">
-      {company?.companyName ?? "Company"}
-    </h1>
-
-    {company?.phone && (
-      <p className="mt-2 text-xs text-[#667085]">
-        {company.phone}
-      </p>
-    )}
-
-    {company?.email && (
-      <p className="text-xs text-[#667085]">
-        {company.email}
-      </p>
-    )}
-  </div>
-</div>
+            <CompanyDocumentHeader company={company} compact>
+              <p className="text-sm font-bold uppercase tracking-[0.3em] text-[#C9A227]">
+  Payment Receipt
+</p>
+            </CompanyDocumentHeader>
 
             <div className="mt-7 grid grid-cols-2 gap-6 border-b border-[#E4E7EC] pb-6">
               <div>
@@ -618,41 +580,8 @@ export default function InvoicePage() {
         </div>
 
         <section className="overflow-hidden rounded-2xl border border-[#E4E7EC] bg-white shadow-sm print:rounded-none print:border-0 print:shadow-none">
-          <header className="border-b border-[#E4E7EC] px-6 py-7 sm:px-8">
-            <div className="grid grid-cols-[minmax(0,1fr)_minmax(150px,220px)] items-start gap-4">
-              <div className="min-w-0">
-                {logos.length > 0 ? (
-                  <div className="flex flex-wrap items-center gap-3">
-                    {logos.map((src, index) => (
-                      <div
-                        key={`${src}-${index}`}
-                        className="flex h-16 min-w-16 items-center justify-center rounded-xl border border-[#E4E7EC] bg-white px-3 py-2"
-                      >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={src} alt={`Company logo ${index + 1}`} className="max-h-12 max-w-32 object-contain" />
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="inline-flex h-16 items-center rounded-xl bg-[#0F6B5B] px-5 text-lg font-black text-white">
-                    {company?.companyName ?? "Company"}
-                  </div>
-                )}
-
-                <h2 className="mt-5 text-2xl font-black tracking-tight text-[#1F2933]">
-                  {company?.companyName ?? "Company"}
-                </h2>
-                <div className="mt-2 space-y-1 text-xs leading-5 text-[#667085]">
-                  {company?.address && <p>{company.address}</p>}
-                  {company?.phone && <p>Phone: {company.phone}</p>}
-                  {company?.email && <p>Email: {company.email}</p>}
-                  {company?.website && <p>Web: {company.website}</p>}
-                  {company?.taxNumber && <p>Tax No: {company.taxNumber}</p>}
-                </div>
-              </div>
-
-              <div className="min-w-0 text-right">
-                <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#C9A227]">Invoice</p>
+          <CompanyDocumentHeader company={company}>
+<p className="text-xs font-bold uppercase tracking-[0.2em] text-[#C9A227]">Invoice</p>
                 <p className="mt-2 break-words text-xl font-black leading-tight text-[#0F6B5B]">
   {invoice.invoiceNo}
 </p>
@@ -670,9 +599,7 @@ export default function InvoicePage() {
                 >
                   {statusLabel(invoice.status)}
                 </span>
-              </div>
-            </div>
-          </header>
+          </CompanyDocumentHeader>
 
           <div className="border-b border-[#E4E7EC] px-6 py-5 sm:px-8">
             <div>

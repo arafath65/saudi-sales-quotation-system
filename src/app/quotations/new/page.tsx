@@ -270,6 +270,8 @@ export default function NewQuotationPage() {
     useState("");
   const [showCustomerResults, setShowCustomerResults] =
     useState(false);
+  const customerSearchContainerRef =
+  useRef<HTMLDivElement>(null);
   const [items, setItems] = useState<
     QuotationItem[]
   >([]);
@@ -419,6 +421,34 @@ export default function NewQuotationPage() {
     }, 0);
     return () => window.clearTimeout(timer);
   }, []);
+
+  useEffect(() => {
+  if (!showCustomerResults) return;
+
+  function handleOutsidePointerDown(event: PointerEvent) {
+    const target = event.target;
+
+    if (
+      target instanceof Node &&
+      customerSearchContainerRef.current &&
+      !customerSearchContainerRef.current.contains(target)
+    ) {
+      setShowCustomerResults(false);
+    }
+  }
+
+  document.addEventListener(
+    "pointerdown",
+    handleOutsidePointerDown
+  );
+
+  return () => {
+    document.removeEventListener(
+      "pointerdown",
+      handleOutsidePointerDown
+    );
+  };
+}, [showCustomerResults]);
   const selectedCustomer = useMemo(
     () =>
       customers.find(
@@ -429,31 +459,25 @@ export default function NewQuotationPage() {
     [customers, selectedCustomerId]
   );
   const filteredCustomers = useMemo(() => {
-    const query = customerSearch
-      .trim()
-      .toLowerCase();
-    if (!query) {
-      return customers.slice(0, 8);
-    }
-    return customers
-      .filter((customer) =>
+  const query = customerSearch.trim().toLowerCase();
+
+  const matchingCustomers = !query
+    ? customers
+    : customers.filter((customer) =>
         [
           customer.customerCode,
           customer.name,
           customer.mobile,
           customer.whatsapp,
-          customer.iqamaNo,
-          customer.passportNo,
         ]
           .filter(Boolean)
           .some((value) =>
-            String(value)
-              .toLowerCase()
-              .includes(query)
+            String(value).toLowerCase().includes(query)
           )
-      )
-      .slice(0, 8);
-  }, [customers, customerSearch]);
+      );
+
+  return matchingCustomers.slice(0, 5);
+}, [customers, customerSearch]);
   const grandTotal = useMemo(
     () =>
       items.reduce(
@@ -930,7 +954,10 @@ if (validUntil < colomboDateInputValue()) {
                   Select an existing customer.
                 </p>
               </div>
-              <div className="relative mt-5">
+              <div
+  ref={customerSearchContainerRef}
+  className="relative mt-5"
+>
                 <label
                   htmlFor="customerSearch"
                   className="block text-sm font-semibold text-[#1F2933]"
@@ -954,7 +981,7 @@ if (validUntil < colomboDateInputValue()) {
                   onFocus={() =>
                     setShowCustomerResults(true)
                   }
-                  placeholder="Search by customer name, Iqama, contact or code..."
+                  placeholder="Search name, contact, WhatsApp or code..."
                   className="mt-2 w-full rounded-xl border border-[#D0D5DD] px-4 py-3 text-sm outline-none focus:border-[#0F6B5B] focus:ring-4 focus:ring-[#0F6B5B]/10"
                 />
                 {showCustomerResults &&
@@ -986,10 +1013,14 @@ if (validUntil < colomboDateInputValue()) {
                                 </span>
                               </div>
                               <p className="mt-1 text-xs text-[#667085]">
-                                <span>Iqama: {customer.iqamaNo?.trim() || "—"}</span>
-                                <span className="mx-2 text-[#D0D5DD]">·</span>
-                                <span>Contact: {customer.mobile || "—"}</span>
-                              </p>
+  <span>Contact: {customer.mobile || "—"}</span>
+  {customer.whatsapp && (
+    <>
+      <span className="mx-2 text-[#D0D5DD]">·</span>
+      <span>WhatsApp: {customer.whatsapp}</span>
+    </>
+  )}
+</p>
                             </button>
                           )
                         )
@@ -1005,10 +1036,14 @@ if (validUntil < colomboDateInputValue()) {
                         {selectedCustomer.name}
                       </p>
                       <p className="mt-1 text-xs text-[#667085]">
-                        <span>Iqama: {selectedCustomer.iqamaNo?.trim() || "—"}</span>
-                        <span className="mx-2 text-[#D0D5DD]">·</span>
-                        <span>Contact: {selectedCustomer.mobile || "—"}</span>
-                      </p>
+  <span>Contact: {selectedCustomer.mobile || "—"}</span>
+  {selectedCustomer.whatsapp && (
+    <>
+      <span className="mx-2 text-[#D0D5DD]">·</span>
+      <span>WhatsApp: {selectedCustomer.whatsapp}</span>
+    </>
+  )}
+</p>
                       {selectedCustomer.whatsapp && (
                         <p className="mt-1 text-xs text-[#667085]">
                           WhatsApp: {selectedCustomer.whatsapp}

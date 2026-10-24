@@ -133,16 +133,7 @@ export async function PATCH(
         ? body.taxNumber.trim()
         : null;
 
-    if (!companyName) {
-      return NextResponse.json(
-        {
-          success: false,
-          message:
-            "Company name is required.",
-        },
-        { status: 400 }
-      );
-    }
+    
 
     const settings =
       await prisma.companySettings.upsert({

@@ -27,7 +27,6 @@ type Customer = {
 
 type CustomerForm = {
   name: string;
-  iqamaNo: string;
   mobile: string;
   whatsapp: string;
   nationality: string;
@@ -45,7 +44,6 @@ type ApiResponse = {
 
 const EMPTY_FORM: CustomerForm = {
   name: "",
-  iqamaNo: "",
   mobile: "",
   whatsapp: "",
   nationality: "",
@@ -144,19 +142,20 @@ export default function CustomersPage() {
   }
 
   function openEditModal(customer: Customer) {
-    setEditingCustomer(customer);
-    setForm({
-      name: customer.name,
-      iqamaNo: customer.iqamaNo ?? "",
-      mobile: customer.mobile,
-      whatsapp: customer.whatsapp ?? "",
-      nationality: customer.nationality ?? "",
-      notes: customer.notes ?? "",
-    });
-    setError("");
-    setMessage("");
-    setModalOpen(true);
-  }
+  setEditingCustomer(customer);
+
+  setForm({
+    name: customer.name,
+    mobile: customer.mobile,
+    whatsapp: customer.whatsapp ?? "",
+    nationality: customer.nationality ?? "",
+    notes: customer.notes ?? "",
+  });
+
+  setError("");
+  setMessage("");
+  setModalOpen(true);
+}
 
   function closeModal() {
     if (saving) return;
@@ -223,13 +222,13 @@ export default function CustomersPage() {
         method: editing ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: form.name.trim(),
-          iqamaNo: form.iqamaNo.trim(),
-          mobile: form.mobile.trim(),
-          whatsapp: form.whatsapp.trim(),
-          nationality: form.nationality.trim(),
-          notes: form.notes.trim(),
-        }),
+  name: form.name.trim(),
+  iqamaNo: "",
+  mobile: form.mobile.trim(),
+  whatsapp: form.whatsapp.trim(),
+  nationality: form.nationality.trim(),
+  notes: form.notes.trim(),
+}),
       });
       const data = (await response.json()) as ApiResponse;
 
@@ -293,7 +292,6 @@ export default function CustomersPage() {
       return [
         customer.customerCode,
         customer.name,
-        customer.iqamaNo,
         customer.mobile,
         customer.whatsapp,
         customer.nationality,
@@ -415,7 +413,7 @@ const lastItem = Math.min(
   setSearch(event.target.value);
   setCurrentPage(1);
 }}
-                    placeholder="Search name, Iqama, contact, WhatsApp..."
+                    placeholder="Search name, contact, WhatsApp..."
                     className="w-full rounded-xl border border-[#D0D5DD] bg-white px-4 py-2.5 text-sm outline-none transition focus:border-[#0F6B5B] focus:ring-4 focus:ring-[#0F6B5B]/10"
                   />
                 </div>
@@ -438,11 +436,10 @@ const lastItem = Math.min(
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[950px] text-sm">
+            <table className="w-full min-w-[820px] text-sm">
               <thead>
                 <tr className="border-b border-[#E4E7EC] bg-[#FAFAF8] text-left">
                   <th className="px-5 py-3 font-semibold text-[#667085]">Customer Name</th>
-                  <th className="px-5 py-3 font-semibold text-[#667085]">Iqama</th>
                   <th className="px-5 py-3 font-semibold text-[#667085]">Contact</th>
                   <th className="px-5 py-3 font-semibold text-[#667085]">WhatsApp</th>
                   <th className="px-5 py-3 font-semibold text-[#667085]">Nationality</th>
@@ -453,7 +450,7 @@ const lastItem = Math.min(
               <tbody>
                 {paginatedCustomers.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-5 py-16 text-center">
+                    <td colSpan={6} className="px-5 py-16 text-center">
                       <div className="mx-auto max-w-sm">
                         <p className="text-sm font-semibold text-[#1F2933]">No customers found</p>
                         <p className="mt-1 text-xs text-[#98A2B3]">
@@ -469,7 +466,6 @@ const lastItem = Math.min(
                         <div className="font-semibold text-[#1F2933]">{customer.name}</div>
                         <div className="mt-1 text-[11px] text-[#98A2B3]">{customer.customerCode}</div>
                       </td>
-                      <td className="px-5 py-4 text-[#667085]">{customer.iqamaNo || "—"}</td>
                       <td className="px-5 py-4 text-[#667085]">{customer.mobile}</td>
                       <td className="px-5 py-4 text-[#667085]">{customer.whatsapp || "—"}</td>
                       <td className="px-5 py-4 text-[#667085]">{customer.nationality || "—"}</td>
@@ -593,20 +589,6 @@ const lastItem = Math.min(
                     data-enter-next="true"
                     autoComplete="off"
                     placeholder="Enter customer name"
-                    className="mt-2 w-full rounded-xl border border-[#D0D5DD] px-4 py-3 text-sm outline-none focus:border-[#0F6B5B] focus:ring-4 focus:ring-[#0F6B5B]/10"
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="iqamaNo" className="block text-sm font-semibold text-[#1F2933]">Iqama Number</label>
-                  <input
-                    id="iqamaNo"
-                    value={form.iqamaNo}
-                    onChange={(event) => updateField("iqamaNo", event.target.value)}
-                    onKeyDown={handleEnterToNextField}
-                    data-enter-next="true"
-                    autoComplete="off"
-                    placeholder="Enter Iqama number"
                     className="mt-2 w-full rounded-xl border border-[#D0D5DD] px-4 py-3 text-sm outline-none focus:border-[#0F6B5B] focus:ring-4 focus:ring-[#0F6B5B]/10"
                   />
                 </div>

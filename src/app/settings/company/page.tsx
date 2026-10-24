@@ -136,11 +136,7 @@ export default function CompanySettingsPage() {
   async function handleSave(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (!companyName.trim()) {
-      setError("Company name is required.");
-      setMessage("");
-      return;
-    }
+    
 
     try {
       setSaving(true);
@@ -355,7 +351,7 @@ export default function CompanySettingsPage() {
                     htmlFor="companyName"
                     className="block text-sm font-semibold text-[#1F2933]"
                   >
-                    Company Name
+                    Company Name <span className="ml-1 text-xs font-normal text-[#98A2B3]">(Optional)</span>
                   </label>
 
                   <input
