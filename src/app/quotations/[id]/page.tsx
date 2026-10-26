@@ -2,7 +2,9 @@
 "use client";
 
 
-import CompanyDocumentHeader from "@/components/documents/CompanyDocumentHeader";
+import CompanyDocumentHeader, {
+  QuotationBusinessFooter,
+} from "@/components/documents/CompanyDocumentHeader";
 import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import QuotationBankTermsFooter from "@/components/quotations/QuotationBankTermsFooter";
@@ -284,224 +286,369 @@ export default function QuotationPreviewPage() {
 return (
     <>
       <style jsx global>{`
-        @page {
-          size: A4 portrait;
-          margin: 12mm 0 0;
-        }
-
-        @media print {
-          html,
-          body {
-            width: 100% !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            background: white !important;
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-          }
-
-          main {
-            width: 100% !important;
-            min-height: 0 !important;
-            margin: 0 !important;
-            padding: 8mm !important;
-            background: white !important;
-          }
-
-          .print-header,
-  .print-footer,
-  .print-page-header,
-  .print-page-footer {
-    display: none !important;
+  @page {
+    size: A4 portrait;
+    margin: 0;
   }
 
-          .quotation-terms-section {
-    padding-top: 8mm !important;
+  /* Quotation-only footer: contacts left/right, thank-you centred */
+  .quotation-company-footer {
+    color: #262626;
+    background-color: #FAF7F0;
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
 
-  
-          .print-hidden {
-            display: none !important;
-          }
+  .quotation-footer-layout {
+    display: grid !important;
+    grid-template-columns:
+      minmax(0, 1fr) auto minmax(0, 1fr) !important;
+    align-items: center !important;
+    gap: 3mm !important;
+  }
 
-          .quotation-page {
-            width: 100% !important;
-            max-width: none !important;
-            margin: 0 !important;
-            overflow: visible !important;
-            box-shadow: none !important;
-            border: none !important;
-            border-radius: 0 !important;
-          }
+  .quotation-footer-layout > div:first-child,
+  .quotation-footer-layout > div:last-child {
+    min-width: 0 !important;
+  }
 
-          .quotation-page header {
-            padding: 5mm 0 6mm !important;
-          }
+  .quotation-footer-layout > div:nth-child(2) {
+    min-width: max-content;
+    text-align: center !important;
+  }
 
-          .quotation-page section {
-            padding-left: 0 !important;
-            padding-right: 0 !important;
-          }
+  .quotation-company-footer p {
+    overflow-wrap: anywhere;
+  }
 
-          .quotation-page section > div {
-            max-width: 100% !important;
-          }
+  @media print {
+    html,
+    body {
+      width: 100% !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      background: white !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
 
-          .quotation-page table {
-            width: 100% !important;
-            max-width: 100% !important;
-            table-layout: fixed !important;
-            border-collapse: collapse !important;
-          }
+    main {
+      width: 100% !important;
+      min-height: 0 !important;
+      margin: 0 !important;
+      padding: 8mm !important;
+      background: white !important;
+    }
 
-          .quotation-page th,
-          .quotation-page td {
-            padding: 8px 5px !important;
-            vertical-align: top !important;
-            overflow-wrap: anywhere;
-          }
+    .print-header,
+    .print-footer,
+    .print-page-header,
+    .print-page-footer {
+      display: none !important;
+    }
 
-          .quotation-page th:nth-child(1),
-          .quotation-page td:nth-child(1) {
-            width: 36% !important;
-          }
+    .quotation-terms-section {
+      padding-top: 8mm !important;
+    }
 
-          .quotation-page th:nth-child(2),
-          .quotation-page td:nth-child(2) {
-            width: 8% !important;
-          }
+    .print-hidden {
+      display: none !important;
+    }
 
-          .quotation-page th:nth-child(3),
-          .quotation-page td:nth-child(3) {
-            width: 19% !important;
-          }
+    .quotation-page {
+      width: 100% !important;
+      max-width: none !important;
+      margin: 0 !important;
+      overflow: visible !important;
+      box-shadow: none !important;
+      border: none !important;
+      border-radius: 0 !important;
+    }
 
-          .quotation-page th:nth-child(4),
-          .quotation-page td:nth-child(4) {
-            width: 18% !important;
-          }
+    .quotation-page header {
+      padding: 0 0 4mm !important;
+    }
 
-          .quotation-page th:nth-child(5),
-          .quotation-page td:nth-child(5) {
-            width: 19% !important;
-          }
+    .quotation-page section {
+      padding-left: 0 !important;
+      padding-right: 0 !important;
+    }
 
-          .quotation-page th:nth-child(n + 2),
-          .quotation-page td:nth-child(n + 2) {
-            font-size: 9pt !important;
-          }
+    .quotation-page section > div {
+      max-width: 100% !important;
+    }
 
-          .quotation-page td:nth-child(2),
-          .quotation-page td:nth-child(3),
-          .quotation-page td:nth-child(4),
-          .quotation-page td:nth-child(5) {
-            white-space: nowrap !important;
-            overflow-wrap: normal !important;
-          }
+    .quotation-page table {
+      width: 100% !important;
+      max-width: 100% !important;
+      table-layout: fixed !important;
+      border-collapse: collapse !important;
+    }
 
-          .quotation-page .mt-8 {
-            margin-top: 5mm !important;
-          }
+    .quotation-page th,
+    .quotation-page td {
+      padding: 8px 5px !important;
+      vertical-align: top !important;
+      overflow-wrap: anywhere;
+    }
 
-          .quotation-page .p-6,
-          .quotation-page .sm\\:p-8 {
-            padding: 5mm 0 !important;
-          }
+    .quotation-page th:nth-child(1),
+    .quotation-page td:nth-child(1) {
+      width: 36% !important;
+    }
 
-          .quotation-page footer {
-            padding: 4mm 0 !important;
-          }
+    .quotation-page th:nth-child(2),
+    .quotation-page td:nth-child(2) {
+      width: 8% !important;
+    }
 
-          .quotation-page img:not(.company-document-logo) {
-            max-height: 16mm !important;
-            max-width: 34mm !important;
-            object-fit: contain !important;
-          }
+    .quotation-page th:nth-child(3),
+    .quotation-page td:nth-child(3) {
+      width: 19% !important;
+    }
 
-          .quotation-page .company-document-logo {
-  max-height: 45mm !important;
-  max-width: 85mm !important;
-  object-fit: contain !important;
-}
+    .quotation-page th:nth-child(4),
+    .quotation-page td:nth-child(4) {
+      width: 18% !important;
+    }
 
-          /*
-           * Let the quotation flow naturally across pages.
-           * Do not force every element to remain on one page.
-           */
-          .quotation-page * {
-            break-inside: auto;
-          }
+    .quotation-page th:nth-child(5),
+    .quotation-page td:nth-child(5) {
+      width: 19% !important;
+    }
 
-          /*
-           * Bank details are an independent section.
-           * Keep both account cards together when possible.
-           */
-          .quotation-bank-terms > div:first-child {
-            break-inside: avoid !important;
-            page-break-inside: avoid !important;
-          }
+    .quotation-page th:nth-child(n + 2),
+    .quotation-page td:nth-child(n + 2) {
+      font-size: 9pt !important;
+    }
 
-          .quotation-bank-terms .grid {
-            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-            gap: 3mm !important;
-          }
+    .quotation-page td:nth-child(2),
+    .quotation-page td:nth-child(3),
+    .quotation-page td:nth-child(4),
+    .quotation-page td:nth-child(5) {
+      white-space: nowrap !important;
+      overflow-wrap: normal !important;
+    }
 
-          .quotation-bank-terms .grid > div {
-            break-inside: avoid !important;
-            page-break-inside: avoid !important;
-          }
+    .quotation-page .mt-8 {
+      margin-top: 5mm !important;
+    }
 
-          /*
-           * Terms & Conditions is the second section inside
-           * QuotationBankTermsFooter. Move the whole section when
-           * it cannot fit in the remaining space, when possible.
-           */
-          .quotation-bank-terms > div:nth-child(2) {
-            break-inside: avoid !important;
-            page-break-inside: avoid !important;
-            margin-top: 4mm !important;
-          }
+    .quotation-page .p-6,
+    .quotation-page .sm\\:p-8 {
+      padding: 5mm 0 !important;
+    }
 
-          .quotation-bank-terms > div:nth-child(2) > h2 {
-            break-after: avoid !important;
-            page-break-after: avoid !important;
-          }
+    .quotation-page footer {
+      padding: 4mm 0 !important;
+    }
 
-          .quotation-bank-terms > div:nth-child(2) > div > div {
-            break-inside: avoid !important;
-            page-break-inside: avoid !important;
-          }
+    /* Keep the 3-column company footer compact and aligned in PDF */
+    .quotation-page .quotation-company-footer {
+      padding: 3mm 4mm !important;
+      background-color: #FAF7F0 !important;
+      color: #262626 !important;
+      break-inside: avoid !important;
+      page-break-inside: avoid !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
 
-          /* Compact, readable bank details and terms for printing. */
-          .quotation-bank-terms {
-            color: #1f2933 !important;
-            margin-top: 4mm !important;
-            padding-top: 3mm !important;
-          }
+    .quotation-page .quotation-footer-layout {
+      display: grid !important;
+      grid-template-columns:
+        minmax(0, 1fr) auto minmax(0, 1fr) !important;
+      align-items: center !important;
+      gap: 4mm !important;
+    }
 
-          .quotation-bank-terms h2 {
-            font-size: 10pt !important;
-          }
+    .quotation-page .quotation-footer-layout > div:nth-child(2) {
+      text-align: center !important;
+    }
 
-          .quotation-bank-terms h3 {
-            font-size: 8pt !important;
-          }
+    .quotation-page .quotation-company-footer p {
+      font-size: 7.5pt !important;
+      line-height: 1.25 !important;
+      overflow-wrap: anywhere !important;
+    }
 
-          .quotation-bank-terms p {
-            font-size: 7.5pt !important;
-            line-height: 1.25 !important;
-          }
+    .quotation-page img:not(.company-document-logo) {
+      max-height: 16mm !important;
+      max-width: 34mm !important;
+      object-fit: contain !important;
+    }
 
-          .quotation-bank-terms .rounded-lg {
-            border-radius: 2px !important;
-          }
+    .quotation-page .company-document-logo {
+      max-height: 25mm !important;
+      max-width: 78mm !important;
+      object-fit: contain !important;
+      object-position: left center !important;
+    }
 
-          /* Reduce excess space above totals. */
-          .quotation-page .mt-6 {
-            margin-top: 3mm !important;
-          }
-        }
-      `}</style>
+    /* Let the quotation flow naturally across pages. */
+    .quotation-page * {
+      break-inside: auto;
+    }
+
+    /* Keep bank account cards together when possible. */
+    .quotation-bank-terms > div:first-child {
+      break-inside: avoid !important;
+      page-break-inside: avoid !important;
+    }
+
+    .quotation-bank-terms .grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+      gap: 3mm !important;
+    }
+
+    .quotation-bank-terms .grid > div {
+      break-inside: avoid !important;
+      page-break-inside: avoid !important;
+    }
+
+    /* Terms and conditions */
+    .quotation-bank-terms > div:nth-child(2) {
+      break-inside: avoid !important;
+      page-break-inside: avoid !important;
+      margin-top: 4mm !important;
+    }
+
+    .quotation-bank-terms > div:nth-child(2) > h2 {
+      break-after: avoid !important;
+      page-break-after: avoid !important;
+    }
+
+    .quotation-bank-terms > div:nth-child(2) > div > div {
+      break-inside: avoid !important;
+      page-break-inside: avoid !important;
+    }
+
+    .quotation-bank-terms {
+      color: #1f2933 !important;
+      margin-top: 4mm !important;
+      padding-top: 3mm !important;
+    }
+
+    .quotation-bank-terms h2 {
+      font-size: 10pt !important;
+    }
+
+    .quotation-bank-terms h3 {
+      font-size: 8pt !important;
+    }
+
+    .quotation-bank-terms p {
+      font-size: 7.5pt !important;
+      line-height: 1.25 !important;
+    }
+
+    .quotation-bank-terms .rounded-lg {
+      border-radius: 2px !important;
+    }
+
+    .quotation-page .mt-6 {
+      margin-top: 3mm !important;
+    }
+  }
+
+  /* Premium black and antique-gold quotation theme */
+  .quotation-page {
+    --quotation-black: #1b1b1b;
+    --quotation-gold: #b99343;
+    --quotation-gold-dark: #92702c;
+    --quotation-gold-pale: #faf7f0;
+
+    font-family: Arial, "Helvetica Neue", Helvetica, sans-serif !important;
+    color: #222222;
+    font-kerning: normal;
+    text-rendering: optimizeLegibility;
+
+    box-shadow:
+      0 18px 45px rgba(24, 24, 24, 0.07),
+      0 2px 10px rgba(185, 147, 67, 0.10) !important;
+  }
+
+  .quotation-page,
+  .quotation-page * {
+    font-family: Arial, "Helvetica Neue", Helvetica, sans-serif !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .quotation-page > header {
+    border-bottom: 3px solid #262626 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .quotation-page .quotation-items-table thead,
+  .quotation-page .quotation-items-table thead tr {
+    background-color: var(--quotation-black) !important;
+    color: #ffffff !important;
+    border-bottom: 1px solid #262626 !important;
+  }
+
+  .quotation-page .quotation-items-table thead th {
+    background-color: transparent !important;
+    color: #ffffff !important;
+  }
+
+  .quotation-page [class~="text-[#0F6B5B]"],
+  .quotation-page [class~="text-[#0A4F44]"] {
+    color: #1b1b1b !important;
+  }
+
+  .quotation-page [class~="border-[#0F6B5B]"] {
+    border-color: var(--quotation-gold) !important;
+  }
+
+  .quotation-page [class~="bg-[#0F6B5B]"],
+  .quotation-page [class~="bg-[#0A4F44]"] {
+    background-color: var(--quotation-black) !important;
+    color: #ffffff !important;
+  }
+
+  .quotation-page [class~="bg-[#0F6B5B]/10"] {
+    background-color: var(--quotation-gold-pale) !important;
+  }
+
+  .quotation-page [class~="bg-[#F7F8F6]"],
+  .quotation-page [class~="bg-[#FAFAF8]"] {
+    background-color: var(--quotation-gold-pale) !important;
+  }
+
+  .quotation-page .quotation-items-table tbody tr {
+    border-color: #e9e0cf !important;
+  }
+
+  .quotation-page .quotation-items-table tbody tr:hover {
+    background-color: var(--quotation-gold-pale) !important;
+  }
+
+  @media print {
+    .quotation-page {
+      box-shadow: none !important;
+    }
+
+    .quotation-page > header {
+      border-bottom: 3px solid #262626 !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+
+    .quotation-page .quotation-items-table thead,
+    .quotation-page .quotation-items-table thead tr {
+      background-color: var(--quotation-black) !important;
+      color: #ffffff !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+
+    .quotation-page .quotation-items-table thead th {
+      color: #ffffff !important;
+    }
+  }
+`}</style>
 
       <main className="min-h-screen bg-[#F7F8F6] p-4 sm:p-8">
         <div className="print-hidden mx-auto mb-5 flex max-w-4xl justify-end gap-3">
@@ -522,7 +669,7 @@ return (
 
         <article className="quotation-page mx-auto max-w-4xl overflow-hidden rounded-2xl border border-[#E4E7EC] bg-white shadow-xl">
           {/* HEADER */}
-          <CompanyDocumentHeader company={company}>
+          <CompanyDocumentHeader company={company} quotationStyle>
 <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#C9A227]">
                   Quotation
                 </p>
@@ -549,17 +696,17 @@ return (
           </CompanyDocumentHeader>
 
           {/* CUSTOMER AND QUOTATION ITEMS */}
-          <section className="p-6 sm:p-8">
-            <div className="rounded-xl border border-[#E4E7EC] bg-[#FAFAF8] p-5">
+          <section className="p-3 sm:p-4">
+  <div className="quotation-customer-card rounded-xl border border-[#E4E7EC] bg-[#FAF7F0] p-3">
               <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#C9A227]">
                 Customer
               </p>
 
-              <h2 className="mt-2 text-lg font-bold text-[#1F2933]">
+              <h2 className="mt-2 text-base font-bold leading-tight text-[#1F2933]">
                 {quotation.customerName}
               </h2>
 
-              <div className="mt-3 grid gap-2 text-xs text-[#667085] sm:grid-cols-2">
+              <div className="mt-1 grid gap-x-4 gap-y-0.5 text-xs leading-tight text-[#667085] sm:grid-cols-2">
 
                 <p>
                   <span className="font-semibold text-[#344054]">
@@ -571,7 +718,7 @@ return (
             </div>
 
             {/* ITEMS */}
-            <div className="mt-8 overflow-hidden rounded-xl border border-[#E4E7EC]">
+            <div className="mt-5 overflow-hidden rounded-xl border border-[#D8D8D8]">
               <table className="w-full text-sm quotation-items-table">
                 <thead className="bg-[#0F6B5B] text-white">
                   <tr>
@@ -715,17 +862,8 @@ return (
           )}
 
           {/* COMPANY FOOTER */}
-          <footer className="border-t border-[#E4E7EC] bg-[#FAFAF8] px-6 py-5 text-center sm:px-8">
-            <p className="text-xs text-[#667085]">
-              Thank you for your business.
-            </p>
-
-            {company?.taxNumber && (
-              <p className="mt-1 text-[10px] text-[#98A2B3]">
-                Tax / VAT No: {company.taxNumber}
-              </p>
-            )}
-          </footer>
+          {/* COMPANY FOOTER */}
+<QuotationBusinessFooter company={company} />
         </article>
 
         {editingItemId !== null && quotation.items.some((item) => item.id === editingItemId) && (() => {

@@ -1,7 +1,8 @@
 "use client";
 
 
-import CompanyDocumentHeader from "@/components/documents/CompanyDocumentHeader";
+import Image from "next/image";
+import { QuotationBusinessFooter } from "@/components/documents/CompanyDocumentHeader";
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { useParams, useRouter } from "next/navigation";
 
@@ -13,6 +14,8 @@ type Company = {
   website: string | null;
   taxNumber: string | null;
   logo1Path: string | null;
+  logo2Path: string | null;
+  logo3Path: string | null;
 };
 
 type TermsSnapshot = {
@@ -258,23 +261,253 @@ export default function HotelConfirmationReceiptPage() {
     );
   }
   const statusLabel = confirmation.status === "DEFINITE" ? "Definite Confirmation" : "Tentative Confirmation";
+  const companyLogo = company?.logo1Path
+    ? `/api/company-settings/logo/${encodeURIComponent(company.logo1Path)}`
+    : null;
 
   return (
     <>
       <style jsx global>{`
-        /* Hotel confirmations are compact, client-facing temporary receipts. */
-        @page { size: A5 portrait; margin: 5mm; }
+
+        /* Consistent black, antique-gold and warm-cream document styling. */
+        .hotel-receipt {
+          --document-black: #1b1b1b;
+          --document-gold: #b99343;
+          --document-cream: #faf7f0;
+          color: #222 !important;
+          font-family: Arial, "Helvetica Neue", Helvetica, sans-serif !important;
+          box-shadow: 0 18px 45px rgba(24, 24, 24, 0.07),
+            0 2px 10px rgba(185, 147, 67, 0.1) !important;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+        }
+
+        .hotel-receipt > header {
+          border-bottom: 3px solid #262626 !important;
+        }
+
+        /* Explicit masthead structure to match the quotation exactly.
+           Company contacts are intentionally not rendered in this header. */
+        .hotel-receipt .hotel-document-header {
+          display: block !important;
+          box-sizing: border-box !important;
+          width: 100% !important;
+          padding: 16px 20px !important;
+          background: #fff !important;
+          border-bottom: 3px solid #262626 !important;
+          border-bottom-color: #262626 !important;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+        }
+
+        .hotel-receipt .hotel-document-header-layout {
+          display: grid !important;
+          grid-template-columns: minmax(0, 1fr) minmax(0, 0.65fr) !important;
+          align-items: center !important;
+          gap: 12px !important;
+          width: 100% !important;
+          min-width: 0 !important;
+        }
+
+        .hotel-receipt .hotel-document-brand {
+          display: flex !important;
+          align-items: center !important;
+          justify-content: flex-start !important;
+          min-width: 0 !important;
+        }
+
+        .hotel-receipt .hotel-document-brand .company-document-logo {
+          display: block !important;
+          width: auto !important;
+          max-width: 78mm !important;
+          max-height: 25mm !important;
+          object-fit: contain !important;
+          object-position: left center !important;
+        }
+
+        .hotel-receipt .hotel-document-meta {
+          display: flex !important;
+          flex-direction: column !important;
+          align-items: flex-end !important;
+          justify-content: center !important;
+          min-width: 0 !important;
+          text-align: right !important;
+        }
+
+        .hotel-receipt .hotel-document-meta p,
+        .hotel-receipt .hotel-document-meta h2,
+        .hotel-receipt .hotel-document-meta span {
+          max-width: 100% !important;
+          overflow-wrap: anywhere !important;
+        }
+
+        .hotel-receipt .hotel-document-meta h2 {
+          font-size: 26px !important;
+          line-height: 1.15 !important;
+        }
+
+        .hotel-receipt .hotel-document-meta .hotel-confirmation-status {
+          margin-top: 10px !important;
+        }
+
+        @media screen and (max-width: 640px) {
+          .hotel-receipt .hotel-document-header {
+            padding: 14px !important;
+          }
+
+          .hotel-receipt .hotel-document-header-layout {
+            grid-template-columns: minmax(0, 1fr) minmax(0, 0.9fr) !important;
+            gap: 10px !important;
+          }
+
+          .hotel-receipt .hotel-document-brand .company-document-logo {
+            max-width: 100% !important;
+            max-height: 70px !important;
+          }
+
+          .hotel-receipt .hotel-document-meta h2 {
+            font-size: 21px !important;
+          }
+        }
+
+        .hotel-receipt [class~="bg-[#0F6B5B]"] {
+          background-color: #1b1b1b !important;
+          color: #fff !important;
+        }
+
+        .hotel-receipt [class~="text-[#0F6B5B]"] {
+          color: #1b1b1b !important;
+        }
+
+        .hotel-receipt [class~="border-[#0F6B5B]"] {
+          border-color: #b99343 !important;
+        }
+
+        .hotel-receipt [class~="bg-[#FAFAF8]"],
+        .hotel-receipt [class~="bg-[#F7F8F6]"] {
+          background-color: #faf7f0 !important;
+        }
+
+        .quotation-company-footer {
+          color: #262626 !important;
+          background-color: #faf7f0 !important;
+          break-inside: avoid;
+          page-break-inside: avoid;
+        }
+
+        .quotation-footer-layout {
+          display: grid !important;
+          grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) !important;
+          align-items: center !important;
+          gap: 3mm !important;
+        }
+
+        .quotation-footer-layout > div:first-child,
+        .quotation-footer-layout > div:last-child {
+          min-width: 0 !important;
+        }
+
+        .quotation-footer-layout > div:nth-child(2) {
+          min-width: max-content;
+          text-align: center !important;
+        }
+
+        .quotation-company-footer p {
+          overflow-wrap: anywhere;
+        }
+
+        .hotel-receipt .rounded-xl {
+          border-radius: 12px !important;
+        }
+
+        @media screen and (max-width: 640px) {
+          .hotel-receipt .company-document-header {
+            padding: 12px 14px !important;
+          }
+
+          .hotel-receipt .company-document-header > div {
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+            gap: 10px !important;
+          }
+
+          .hotel-receipt .company-document-header > div > div:first-child,
+          .hotel-receipt .company-document-header > div > div:last-child {
+            min-height: 76px !important;
+          }
+
+          .hotel-receipt .company-document-logo {
+            max-width: 100% !important;
+            max-height: 70px !important;
+          }
+
+          .hotel-receipt .company-document-header h2 {
+            font-size: 21px !important;
+          }
+        }
+
+        /* Match quotation PDF paper setup: A4 with an 8 mm document inset. */
+        @page {
+          size: A4 portrait;
+          margin: 0;
+        }
 
         @media print {
+          /* Hide the application shell while printing this receipt. The header,
+             sign-out button, desktop sidebar, and mobile scroll navigation belong
+             to the application, not to the hotel confirmation document. */
+          body:has(.hotel-receipt-print-shell) aside,
+          body:has(.hotel-receipt-print-shell) nav,
+          body:has(.hotel-receipt-print-shell) .sticky:not(:has(.hotel-receipt-print-shell)),
+          body:has(.hotel-receipt-print-shell) header:not(.hotel-document-header):not(:has(.hotel-receipt-print-shell)),
+          body:has(.hotel-receipt-print-shell) [role="navigation"] {
+            display: none !important;
+          }
+
+          /* Remove the app content offset (including lg:pl-72) and screen minimum-height
+             so the actual receipt starts at the top-left of the printed paper. */
+          body:has(.hotel-receipt-print-shell) [class~="lg:pl-72"],
+          body:has(.hotel-receipt-print-shell) [class~="min-h-screen"]:not(.hotel-receipt-print-shell) {
+            box-sizing: border-box !important;
+            width: 100% !important;
+            max-width: none !important;
+            min-height: 0 !important;
+            height: auto !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            transform: none !important;
+          }
+
           html,
           body {
+            display: block !important;
+            box-sizing: border-box !important;
             width: 100% !important;
+            min-width: 0 !important;
+            height: auto !important;
             min-height: 0 !important;
             margin: 0 !important;
             padding: 0 !important;
+            overflow: visible !important;
             background: #fff !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
+          }
+
+          /* Stop parent app containers from centering or constraining the printable page. */
+          body > div,
+          body > div > div,
+          #__next {
+            display: block !important;
+            box-sizing: border-box !important;
+            width: 100% !important;
+            max-width: none !important;
+            height: auto !important;
+            min-height: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            align-items: flex-start !important;
+            justify-content: flex-start !important;
+            overflow: visible !important;
           }
 
           body { font-size: 8pt !important; }
@@ -282,225 +515,285 @@ export default function HotelConfirmationReceiptPage() {
 
           .hotel-receipt-print-shell {
             display: block !important;
-            width: 100% !important;
-            max-width: none !important;
-            min-height: 0 !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            background: #fff !important;
-          }
-
-          .hotel-receipt {
+            position: static !important;
             box-sizing: border-box !important;
             width: 100% !important;
             max-width: none !important;
+            min-width: 0 !important;
+            min-height: 0 !important;
+            height: auto !important;
+            margin: 0 !important;
+            padding: 8mm !important;
+            border: 0 !important;
+            background: #fff !important;
+            vertical-align: top !important;
+          }
+
+          .hotel-receipt {
+            position: static !important;
+            box-sizing: border-box !important;
+            /* Fill the printable A4 area so a short receipt can keep its
+               company contact footer at the bottom, like the quotation PDF. */
+            display: flex !important;
+            flex-direction: column !important;
+            width: 100% !important;
+            max-width: none !important;
+            min-width: 0 !important;
+            min-height: 281mm !important;
+            height: auto !important;
             overflow: visible !important;
             margin: 0 !important;
-            border: none !important;
+            padding: 0 !important;
+            transform: none !important;
+            border: 0 !important;
             border-radius: 0 !important;
             box-shadow: none !important;
             color: #1F2933 !important;
             font-size: 8pt !important;
+            vertical-align: top !important;
           }
 
-          /* Compact, two-column masthead: don't let the header consume a page. */
-          .hotel-receipt > header {
-            padding: 3mm !important;
-            border-bottom-width: 1mm !important;
+          /* Compact masthead with practically no top or side padding. */
+          .hotel-receipt > header,
+          .hotel-receipt .hotel-document-header {
+            display: block !important;
+            box-sizing: border-box !important;
+            width: 100% !important;
+            margin: 0 !important;
+            padding: 0 1mm 1.5mm !important;
+            border-bottom: 0.8mm solid #262626 !important;
+            background: #fff !important;
             break-inside: avoid !important;
             page-break-inside: avoid !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
 
-          .hotel-receipt > header > div {
+          .hotel-receipt .hotel-document-header-layout {
+            display: grid !important;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 0.65fr) !important;
+            align-items: center !important;
+            gap: 2mm !important;
+            width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+
+          .hotel-receipt .hotel-document-brand {
             display: flex !important;
-            flex-direction: row !important;
-            align-items: flex-start !important;
-            justify-content: space-between !important;
-            gap: 3mm !important;
+            align-items: center !important;
+            justify-content: flex-start !important;
+            min-width: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
           }
 
-          .hotel-receipt > header > div > div:first-child {
-            flex: 1 1 52% !important;
-            min-width: 0 !important;
+          .hotel-receipt .hotel-document-brand .company-document-logo,
+          .hotel-receipt .company-document-logo {
+            display: block !important;
+            width: auto !important;
+            max-width: 62mm !important;
+            max-height: 22mm !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            object-fit: contain !important;
+            object-position: left center !important;
           }
 
-          .hotel-receipt > header > div > div:last-child {
-            flex: 1 1 48% !important;
+          /* Only the first configured company logo appears on the customer PDF. */
+          .hotel-receipt > header img:not(.company-document-logo) {
+            display: none !important;
+          }
+
+          .hotel-receipt .hotel-document-meta {
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: flex-end !important;
+            justify-content: center !important;
             min-width: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
             text-align: right !important;
           }
 
-          .hotel-receipt > header img:not(.company-document-logo) {
-            width: auto !important;
-            max-width: 22mm !important;
-            height: auto !important;
-            max-height: 10mm !important;
-            object-fit: contain !important;
-          }
-
-          .hotel-receipt > header .company-document-logo {
-  max-width: 68mm !important;
-  max-height: 32mm !important;
-  object-fit: contain !important;
-}
-
-          .hotel-receipt > header h1 {
-            margin-top: 1.5mm !important;
-            font-size: 11pt !important;
-            line-height: 1.15 !important;
-          }
-
-          .hotel-receipt > header h2 {
-            margin-top: 1mm !important;
+          .hotel-receipt .hotel-document-meta h2 {
+            margin: 0 !important;
             font-size: 12pt !important;
-            line-height: 1.15 !important;
+            line-height: 1.12 !important;
           }
 
-          .hotel-receipt > header p,
-          .hotel-receipt > header .space-y-1 {
+          .hotel-receipt .hotel-document-meta p {
+            margin-top: 0.6mm !important;
+            font-size: 6.2pt !important;
+            line-height: 1.2 !important;
+            overflow-wrap: anywhere !important;
+          }
+
+          .hotel-receipt .hotel-document-meta span {
             margin-top: 1mm !important;
-            font-size: 6.5pt !important;
-            line-height: 1.25 !important;
+            padding: 0.6mm 1.5mm !important;
+            font-size: 5.8pt !important;
+            line-height: 1.2 !important;
           }
 
-          .hotel-receipt > header span {
-            margin-top: 1.5mm !important;
-            padding: 1mm 2mm !important;
-            font-size: 6pt !important;
-          }
-
-          /* CRITICAL: the whole content section must flow after the header.
-             Avoiding a break on this parent was pushing ALL content to page 2. */
+          /* Use the available printable width. Reduce left/right insets throughout. */
           .hotel-receipt > section {
             display: block !important;
-            padding: 3mm !important;
+            box-sizing: border-box !important;
+            width: 100% !important;
             margin: 0 !important;
+            padding: 1.5mm 0.5mm !important;
             break-inside: auto !important;
             page-break-inside: auto !important;
           }
 
           .hotel-receipt > section > div,
           .hotel-receipt > section > section {
-            margin-top: 2.5mm !important;
+            margin-top: 1.5mm !important;
+            min-width: 0 !important;
           }
 
           .hotel-receipt > section > div:first-child {
             margin-top: 0 !important;
-          }
-
-          .hotel-receipt .rounded-xl {
-            border-radius: 2mm !important;
-          }
-
-          .hotel-receipt > section > div:first-child {
-            padding: 2.5mm !important;
+            padding: 1.8mm !important;
             break-inside: avoid !important;
             page-break-inside: avoid !important;
           }
 
+          .hotel-receipt .rounded-xl {
+            border-radius: 1.5mm !important;
+          }
+
           .hotel-receipt > section > div:first-child h3 {
-            margin-top: 1mm !important;
-            font-size: 10pt !important;
-            line-height: 1.2 !important;
+            margin-top: 0.8mm !important;
+            font-size: 9pt !important;
+            line-height: 1.15 !important;
           }
 
           .hotel-receipt > section > div:first-child > div {
             grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-            gap: 1.5mm 3mm !important;
-            margin-top: 1.5mm !important;
+            gap: 1mm 2mm !important;
+            margin-top: 1mm !important;
           }
 
           .hotel-receipt > section > div:first-child > div p {
-            font-size: 7pt !important;
-            line-height: 1.25 !important;
+            font-size: 6.5pt !important;
+            line-height: 1.2 !important;
             overflow-wrap: anywhere !important;
           }
 
-          /* Hotel details table: two narrow columns with less padding. */
           .hotel-receipt > section > div:nth-child(2) {
+            width: 100% !important;
+            margin-top: 1.5mm !important;
+            overflow: visible !important;
             break-inside: auto !important;
             page-break-inside: auto !important;
-            overflow: visible !important;
           }
 
           .hotel-receipt > section > div:nth-child(2) > div:first-child {
-            padding: 2mm 2.5mm !important;
-            font-size: 7pt !important;
+            padding: 1.5mm 1.8mm !important;
+            font-size: 6.7pt !important;
           }
 
           .hotel-receipt > section > div:nth-child(2) > div:nth-child(2) {
             grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-            gap: 0.3mm !important;
+            gap: 0.2mm !important;
           }
 
           .hotel-receipt > section > div:nth-child(2) > div:nth-child(2) > div {
-            padding: 1.8mm 2.2mm !important;
             min-width: 0 !important;
+            padding: 1.2mm 1.5mm !important;
             break-inside: avoid !important;
             page-break-inside: avoid !important;
           }
 
           .hotel-receipt > section > div:nth-child(2) p {
-            line-height: 1.2 !important;
+            line-height: 1.15 !important;
+            overflow-wrap: anywhere !important;
           }
 
           .hotel-receipt > section > div:nth-child(2) p:first-child {
-            font-size: 6.2pt !important;
+            font-size: 5.8pt !important;
           }
 
           .hotel-receipt > section > div:nth-child(2) p:last-child {
-            margin-top: 0.8mm !important;
-            font-size: 8pt !important;
+            margin-top: 0.5mm !important;
+            font-size: 7.2pt !important;
           }
 
-          /* Booking amount and terms are compact, but may flow if genuinely long. */
           .hotel-receipt > section > div:nth-child(3),
           .hotel-receipt > section > section {
-            padding: 2.5mm !important;
+            box-sizing: border-box !important;
+            width: 100% !important;
+            padding: 1.8mm !important;
             break-inside: auto !important;
             page-break-inside: auto !important;
           }
 
           .hotel-receipt > section > div:nth-child(3) h3,
           .hotel-receipt > section > section h3 {
-            font-size: 8pt !important;
+            font-size: 7.5pt !important;
+            margin: 0 !important;
           }
 
           .hotel-receipt > section > div:nth-child(3) > div {
-            margin-top: 1.5mm !important;
-            gap: 1mm !important;
-            font-size: 7.5pt !important;
+            margin-top: 1mm !important;
+            gap: 0.8mm !important;
+            font-size: 7pt !important;
           }
 
           .hotel-receipt > section > div:nth-child(3) > div > div:last-child {
-            padding-top: 1.5mm !important;
+            padding-top: 1mm !important;
           }
 
           .hotel-receipt > section > section > div {
-            margin-top: 1.5mm !important;
-            gap: 2mm !important;
+            margin-top: 1mm !important;
+            gap: 1.2mm !important;
           }
 
           .hotel-receipt > section > section p {
-            font-size: 7pt !important;
-            line-height: 1.3 !important;
+            font-size: 6.5pt !important;
+            line-height: 1.2 !important;
+            overflow-wrap: anywhere !important;
           }
 
-          .hotel-receipt > footer {
-            padding: 2.5mm 3mm !important;
+          .hotel-receipt > footer,
+          .hotel-receipt .quotation-company-footer {
+            display: block !important;
+            box-sizing: border-box !important;
+            width: 100% !important;
+            /* Auto top margin moves this footer to the bottom when the receipt
+               fits on one page; for long receipts it collapses to zero. */
+            margin: auto 0 0 !important;
+            padding: 1.5mm 1.8mm !important;
+            background-color: #faf7f0 !important;
+            color: #262626 !important;
             break-inside: avoid !important;
             page-break-inside: avoid !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
 
-          .hotel-receipt > footer p:first-child {
-            font-size: 7pt !important;
-            line-height: 1.25 !important;
+          .hotel-receipt .quotation-footer-layout {
+            display: grid !important;
+            grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) !important;
+            align-items: center !important;
+            gap: 1mm !important;
+          }
+
+          .hotel-receipt .quotation-footer-layout > div:nth-child(2) {
+            text-align: center !important;
+          }
+
+          .hotel-receipt .quotation-company-footer p,
+          .hotel-receipt > footer p {
+            font-size: 5.5pt !important;
+            line-height: 1.15 !important;
+            overflow-wrap: anywhere !important;
           }
 
           .hotel-receipt > footer p:last-child {
-            margin-top: 1mm !important;
-            font-size: 6pt !important;
-            line-height: 1.2 !important;
+            margin-top: 0.5mm !important;
           }
         }
       `}</style>
@@ -512,13 +805,41 @@ export default function HotelConfirmationReceiptPage() {
         </div>
 
         <article className="hotel-receipt mx-auto max-w-4xl overflow-hidden rounded-2xl border border-[#E4E7EC] bg-white shadow-xl">
-          <CompanyDocumentHeader company={company}>
-<p className="text-xs font-black uppercase tracking-[0.18em] text-[#C9A227]">Temporary Hotel Booking</p>
-                <h2 className="mt-1 text-2xl font-black text-[#0F6B5B]">Confirmation</h2>
-                <p className="mt-2 text-sm font-black text-[#1F2933]">{confirmation.receiptNo}</p>
-                <p className="mt-1 text-xs text-[#667085]">Quotation: {confirmation.quotation?.quotationNo || `#${confirmation.quotationId}`}</p>
-                <span className={`mt-3 inline-flex rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-wider ${confirmation.status === "DEFINITE" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>{statusLabel}</span>
-          </CompanyDocumentHeader>
+          <header className="hotel-document-header">
+            <div className="hotel-document-header-layout">
+              <div className="hotel-document-brand">
+                {companyLogo ? (
+                  <Image
+                    src={companyLogo}
+                    alt="Company logo"
+                    width={420}
+                    height={150}
+                    unoptimized
+                    className="company-document-logo"
+                  />
+                ) : company?.companyName ? (
+                  <h1 className="text-xl font-black tracking-tight text-[#1B1B1B]">
+                    {company.companyName}
+                  </h1>
+                ) : null}
+              </div>
+
+              <div className="hotel-document-meta">
+                <h2 className="text-2xl font-black text-[#1B1B1B]">
+                  Confirmation
+                </h2>
+                <p className="mt-2 text-sm font-black text-[#1F2933]">
+                  {confirmation.receiptNo}
+                </p>
+                <p className="mt-1 text-xs text-[#667085]">
+                  Quotation: {confirmation.quotation?.quotationNo || `#${confirmation.quotationId}`}
+                </p>
+                <span className={`hotel-confirmation-status mt-3 inline-flex rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-wider ${confirmation.status === "DEFINITE" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>
+                  {statusLabel}
+                </span>
+              </div>
+            </div>
+          </header>
 
           <section className="p-6 sm:p-8">
             <div className="rounded-xl border border-[#E4E7EC] bg-[#FAFAF8] p-5">
@@ -527,8 +848,6 @@ export default function HotelConfirmationReceiptPage() {
               <div className="mt-3 grid gap-2 text-xs text-[#667085] sm:grid-cols-2">
                 <p><span className="font-bold text-[#344054]">Mobile: </span>{confirmation.customerMobile || "—"}</p>
                 <p><span className="font-bold text-[#344054]">WhatsApp: </span>{confirmation.customerWhatsapp || "—"}</p>
-                <p><span className="font-bold text-[#344054]">Email: </span>{confirmation.customerEmail || "—"}</p>
-                <p><span className="font-bold text-[#344054]">Passport: </span>{confirmation.customerPassportNo || "—"}</p>
                 {confirmation.customerAddress && <p className="sm:col-span-2"><span className="font-bold text-[#344054]">Address: </span>{confirmation.customerAddress}</p>}
               </div>
             </div>
@@ -587,10 +906,7 @@ export default function HotelConfirmationReceiptPage() {
             )}
           </section>
 
-          <footer className="border-t border-[#E4E7EC] bg-[#FAFAF8] px-6 py-5 text-center sm:px-8">
-            <p className="text-xs font-semibold text-[#667085]">Temporary hotel booking confirmation, issued according to your request.</p>
-            <p className="mt-1 text-[10px] text-[#98A2B3]">Booking reference: {confirmation.hotelConfirmationNumber} · Quotation {confirmation.quotation?.quotationNo || confirmation.quotationId}.</p>
-          </footer>
+          <QuotationBusinessFooter company={company} />
         </article>
 
         <section className="print-hidden mx-auto mt-6 max-w-4xl rounded-2xl border border-[#E4E7EC] bg-white p-5 shadow-sm sm:p-6">
