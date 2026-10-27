@@ -8,7 +8,7 @@ import { getCurrentQuotationDate } from "@/lib/quotation-expiry";
 
 type ServiceType =
   | "UMRAH_VISA"
-  |  "RAWDHA"
+  | "RAWDHA"
   | "HOTEL_ACCOMMODATION"
   | "AIR_TICKET"
   | "TRANSPORTATION";
@@ -20,6 +20,7 @@ type ServiceType =
 
 type IncomingItem = {
   serviceType: string;
+  additionalDescription?: string;
   visaType?: string;
   hotelName?: string;
   roomType?: string;
@@ -85,7 +86,6 @@ const VISA_TYPES = new Set<string>([
   "HOST_UMRAH_VISA",
 ]);
 
-const AC_TYPES = new Set<string>(["AC", "NON_AC"]);
 const BOARD_TYPES = new Set<string>(["ROOM_ONLY", "BED_BREAKFAST"]);
 const TICKET_TYPES = new Set<string>(["ONE_WAY", "RETURN"]);
 
@@ -244,36 +244,37 @@ if (validUntilText < getCurrentQuotationDate()) {
     }
 
     
-    // Bank accounts are optional. A quotation may contain zero, one, or two.
+    // Require exactly two different bank accounts.
     const selectedBankIds = Array.isArray(body.selectedBankIds)
       ? body.selectedBankIds.map((value) => Number(value))
       : [];
 
     if (
-      selectedBankIds.length > 2 ||
+      selectedBankIds.length !== 2 ||
       selectedBankIds.some(
         (id) => !Number.isInteger(id) || id <= 0
       ) ||
-      new Set(selectedBankIds).size !== selectedBankIds.length
+      new Set(selectedBankIds).size !== 2
     ) {
       return NextResponse.json(
         {
           success: false,
           message:
-            "Select up to two different valid bank accounts, or leave them unselected.",
+            "Select exactly two different bank accounts for this quotation.",
         },
         { status: 400 }
       );
     }
 
-    const selectedBanks = selectedBankIds.length
-      ? await prisma.quotationBankDetail.findMany({
-          where: { id: { in: selectedBankIds } },
-        })
-      : [];
+    const selectedBanks =
+      await prisma.quotationBankDetail.findMany({
+        where: {
+          id: { in: selectedBankIds },
+        },
+      });
 
     if (
-      selectedBanks.length !== selectedBankIds.length ||
+      selectedBanks.length !== 2 ||
       selectedBanks.some(
         (bank) =>
           !bank.bankName.trim() ||
@@ -285,14 +286,13 @@ if (validUntilText < getCurrentQuotationDate()) {
         {
           success: false,
           message:
-            "One or more selected bank accounts are unavailable. Refresh and choose valid accounts, or leave them unselected.",
+            "One or more selected bank accounts are unavailable. Refresh and select two valid accounts.",
         },
         { status: 400 }
       );
     }
 
     // Save values, not database IDs, as historical snapshots.
-    // An empty array intentionally means no bank details were selected.
     const selectedBankSnapshots = selectedBanks
       .sort((a, b) => a.slot - b.slot)
       .map((bank) => ({
@@ -597,18 +597,7 @@ if (validUntilText < getCurrentQuotationDate()) {
           );
         }
 
-        const acValue = cleanText(item.acType);
         const boardValue = cleanText(item.boardType);
-
-        if (!AC_TYPES.has(acValue)) {
-          return NextResponse.json(
-            {
-              success: false,
-              message: `AC type is required on item ${itemNumber}.`,
-            },
-            { status: 400 }
-          );
-        }
 
         if (!BOARD_TYPES.has(boardValue)) {
           return NextResponse.json(
@@ -620,14 +609,16 @@ if (validUntilText < getCurrentQuotationDate()) {
           );
         }
 
-        acType = acValue as NonNullable<PreparedItem["acType"]>;
+        // Saudi hotel accommodation is treated as air-conditioned by default.
+        // Keep the existing nullable enum column populated for compatibility,
+        // but do not ask users to choose AC / Non-AC or show it in the description.
+        acType = "AC";
         boardType = boardValue as NonNullable<PreparedItem["boardType"]>;
 
         description = [
           hotelName,
           roomType,
           `${numberOfDays} ${numberOfDays === 1 ? "day" : "days"}`,
-          acType === "AC" ? "AC" : "Non-AC",
           boardType === "BED_BREAKFAST" ? "Bed & Breakfast" : "Room Only",
         ].join(" · ");
       }
@@ -808,19 +799,19 @@ if (validUntilText < getCurrentQuotationDate()) {
 
           if (adult.quantity > 0) {
             breakdown.push(
-              `Adult ${currency} ${formatMoney(adult.price)} × ${adult.quantity}`
+              `Adult SAR ${formatMoney(adult.price)} × ${adult.quantity}`
             );
           }
 
           if (child.quantity > 0) {
             breakdown.push(
-              `Child ${currency} ${formatMoney(child.price)} × ${child.quantity}`
+              `Child SAR ${formatMoney(child.price)} × ${child.quantity}`
             );
           }
 
           if (infant.quantity > 0) {
             breakdown.push(
-              `Infant ${currency} ${formatMoney(infant.price)} × ${infant.quantity}`
+              `Infant SAR ${formatMoney(infant.price)} × ${infant.quantity}`
             );
           }
 
@@ -903,6 +894,13 @@ if (validUntilText < getCurrentQuotationDate()) {
         }
 
         description = `${route.name} - ${vehicle.name}`;
+      }
+
+      const additionalDescription = cleanText(item.additionalDescription);
+      if (additionalDescription) {
+        description = description
+          ? `${description} · ${additionalDescription}`
+          : additionalDescription;
       }
 
       if (!Number.isFinite(amount) || amount <= 0) {

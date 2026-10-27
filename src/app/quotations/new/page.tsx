@@ -60,6 +60,7 @@ type ServiceType =
 type QuotationItem = {
   id: string;
   serviceType: ServiceType;
+  additionalDescription: string;
   visaType: string;
   hotelName: string;
   roomType: string;
@@ -97,6 +98,7 @@ function newItem(
   return {
     id: crypto.randomUUID(),
     serviceType,
+    additionalDescription: "",
     visaType: "GROUP",
     hotelName: "",
     roomType: "",
@@ -270,8 +272,6 @@ export default function NewQuotationPage() {
     useState("");
   const [showCustomerResults, setShowCustomerResults] =
     useState(false);
-  const customerSearchContainerRef =
-  useRef<HTMLDivElement>(null);
   const [items, setItems] = useState<
     QuotationItem[]
   >([]);
@@ -421,34 +421,6 @@ export default function NewQuotationPage() {
     }, 0);
     return () => window.clearTimeout(timer);
   }, []);
-
-  useEffect(() => {
-  if (!showCustomerResults) return;
-
-  function handleOutsidePointerDown(event: PointerEvent) {
-    const target = event.target;
-
-    if (
-      target instanceof Node &&
-      customerSearchContainerRef.current &&
-      !customerSearchContainerRef.current.contains(target)
-    ) {
-      setShowCustomerResults(false);
-    }
-  }
-
-  document.addEventListener(
-    "pointerdown",
-    handleOutsidePointerDown
-  );
-
-  return () => {
-    document.removeEventListener(
-      "pointerdown",
-      handleOutsidePointerDown
-    );
-  };
-}, [showCustomerResults]);
   const selectedCustomer = useMemo(
     () =>
       customers.find(
@@ -459,25 +431,31 @@ export default function NewQuotationPage() {
     [customers, selectedCustomerId]
   );
   const filteredCustomers = useMemo(() => {
-  const query = customerSearch.trim().toLowerCase();
-
-  const matchingCustomers = !query
-    ? customers
-    : customers.filter((customer) =>
+    const query = customerSearch
+      .trim()
+      .toLowerCase();
+    if (!query) {
+      return customers.slice(0, 8);
+    }
+    return customers
+      .filter((customer) =>
         [
           customer.customerCode,
           customer.name,
           customer.mobile,
           customer.whatsapp,
+          customer.iqamaNo,
+          customer.passportNo,
         ]
           .filter(Boolean)
           .some((value) =>
-            String(value).toLowerCase().includes(query)
+            String(value)
+              .toLowerCase()
+              .includes(query)
           )
-      );
-
-  return matchingCustomers.slice(0, 5);
-}, [customers, customerSearch]);
+      )
+      .slice(0, 8);
+  }, [customers, customerSearch]);
   const grandTotal = useMemo(
     () =>
       items.reduce(
@@ -519,6 +497,7 @@ export default function NewQuotationPage() {
     setDraftItem({
       ...baseItem,
       id: draftItem.id,
+      additionalDescription: draftItem.additionalDescription,
       roomType:
         serviceType === "HOTEL_ACCOMMODATION"
           ? hotelRoomTypes[0]?.name ?? ""
@@ -697,6 +676,12 @@ if (validUntil < colomboDateInputValue()) {
       setError("Please add at least one service.");
       return;
     }
+    if (quotationOptions.selectedBankIds.length !== 2) {
+  setError(
+    "Please select exactly two bank accounts for this quotation."
+  );
+  return;
+}
     try {
       setSaving(true);
       setError("");
@@ -723,6 +708,7 @@ if (validUntil < colomboDateInputValue()) {
 
   items: items.map((item) => ({
             serviceType: item.serviceType,
+            additionalDescription: item.additionalDescription.trim() || undefined,
             visaType:
               item.serviceType === "UMRAH_VISA"
                 ? item.visaType
@@ -878,64 +864,59 @@ if (validUntil < colomboDateInputValue()) {
           </p>
         </div>
         <section className="mt-5 rounded-2xl border border-[#E4E7EC] bg-white p-5 shadow-sm">
-  <div className="grid gap-5 sm:grid-cols-[minmax(0,1fr)_minmax(0,620px)] sm:items-start">
-    <div className="pt-1">
-      <h2 className="text-sm font-bold text-[#1F2933]">
-        Quotation Validity
-      </h2>
-    </div>
+          <div className="grid gap-4 sm:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1fr)] sm:items-start">
+            <div className="sm:pt-1">
+              <h2 className="text-sm font-bold text-[#1F2933]">
+                Quotation Validity
+              </h2>
+            </div>
 
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-  <div>
-    <label
-      htmlFor="currency"
-      className="block text-xs font-semibold text-[#344054]"
-    >
-      Currency *
-    </label>
+            <div>
+              <label
+                htmlFor="currency"
+                className="block text-xs font-semibold text-[#344054]"
+              >
+                Currency *
+              </label>
+              <select
+                id="currency"
+                value={currency}
+                onChange={(event) =>
+                  setCurrency(event.target.value as Currency)
+                }
+                className="mt-2 w-full rounded-xl border border-[#D0D5DD] bg-white px-4 py-3 text-sm outline-none focus:border-[#0F6B5B] focus:ring-4 focus:ring-[#0F6B5B]/10"
+              >
+                <option value="SAR">SAR — Saudi Riyal</option>
+                <option value="LKR">LKR — Sri Lankan Rupee</option>
+                <option value="USD">USD — US Dollar</option>
+              </select>
+              <p className="mt-1 text-xs text-[#667085]">
+                This quotation uses one currency throughout. No currency conversion is applied.
+              </p>
+            </div>
 
-    <select
-      id="currency"
-      value={currency}
-      onChange={(event) =>
-        setCurrency(event.target.value as Currency)
-      }
-      className="mt-2 w-full rounded-xl border border-[#D0D5DD] bg-white px-4 py-3 text-sm outline-none focus:border-[#0F6B5B] focus:ring-4 focus:ring-[#0F6B5B]/10"
-    >
-      <option value="SAR">SAR — Saudi Riyal</option>
-      <option value="LKR">LKR — Sri Lankan Rupee</option>
-      <option value="USD">USD — US Dollar</option>
-    </select>
-
-    <p className="mt-1 text-xs leading-5 text-[#667085]">
-      This quotation uses one currency throughout. No currency conversion is applied.
-    </p>
-  </div>
-
-  <div>
-    <label
-      htmlFor="validUntil"
-      className="block text-xs font-semibold text-[#344054]"
-    >
-      Valid Until *
-    </label>
-
-    <input
-      id="validUntil"
-      type="date"
-      required
-      min={colomboDateInputValue()}
-      value={validUntil}
-      onChange={(event) => setValidUntil(event.target.value)}
-      className="mt-2 w-full rounded-xl border border-[#D0D5DD] bg-white px-4 py-3 text-sm outline-none focus:border-[#0F6B5B] focus:ring-4 focus:ring-[#0F6B5B]/10"
-    />
-    <p className="mt-1 text-xs leading-5 text-[#667085]">
-      Select the last date this quotation will be valid.
-    </p>
-  </div>
-</div>
-  </div>
-</section>
+            <div>
+              <label
+                htmlFor="validUntil"
+                className="block text-xs font-semibold text-[#344054]"
+              >
+                Valid Until *
+              </label>
+              <input
+                id="validUntil"
+                type="date"
+                required
+                min={colomboDateInputValue()}
+                value={validUntil}
+                onChange={(event) => setValidUntil(event.target.value)}
+                className="mt-2 w-full rounded-xl border border-[#D0D5DD] bg-white px-4 py-3 text-sm outline-none focus:border-[#0F6B5B] focus:ring-4 focus:ring-[#0F6B5B]/10"
+              />
+              <p className="mt-1 text-xs text-[#667085]">
+                Select the last date this quotation will be valid.
+              </p>
+            </div>
+          </div>
+        </section>
         {error && !itemModalOpen && (
           <div className="mt-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
             {error}
@@ -954,10 +935,7 @@ if (validUntil < colomboDateInputValue()) {
                   Select an existing customer.
                 </p>
               </div>
-              <div
-  ref={customerSearchContainerRef}
-  className="relative mt-5"
->
+              <div className="relative mt-5">
                 <label
                   htmlFor="customerSearch"
                   className="block text-sm font-semibold text-[#1F2933]"
@@ -981,7 +959,7 @@ if (validUntil < colomboDateInputValue()) {
                   onFocus={() =>
                     setShowCustomerResults(true)
                   }
-                  placeholder="Search name, contact, WhatsApp or code..."
+                  placeholder="Search by customer name, Iqama, contact or code..."
                   className="mt-2 w-full rounded-xl border border-[#D0D5DD] px-4 py-3 text-sm outline-none focus:border-[#0F6B5B] focus:ring-4 focus:ring-[#0F6B5B]/10"
                 />
                 {showCustomerResults &&
@@ -1013,14 +991,10 @@ if (validUntil < colomboDateInputValue()) {
                                 </span>
                               </div>
                               <p className="mt-1 text-xs text-[#667085]">
-  <span>Contact: {customer.mobile || "—"}</span>
-  {customer.whatsapp && (
-    <>
-      <span className="mx-2 text-[#D0D5DD]">·</span>
-      <span>WhatsApp: {customer.whatsapp}</span>
-    </>
-  )}
-</p>
+                                <span>Iqama: {customer.iqamaNo?.trim() || "—"}</span>
+                                <span className="mx-2 text-[#D0D5DD]">·</span>
+                                <span>Contact: {customer.mobile || "—"}</span>
+                              </p>
                             </button>
                           )
                         )
@@ -1036,14 +1010,10 @@ if (validUntil < colomboDateInputValue()) {
                         {selectedCustomer.name}
                       </p>
                       <p className="mt-1 text-xs text-[#667085]">
-  <span>Contact: {selectedCustomer.mobile || "—"}</span>
-  {selectedCustomer.whatsapp && (
-    <>
-      <span className="mx-2 text-[#D0D5DD]">·</span>
-      <span>WhatsApp: {selectedCustomer.whatsapp}</span>
-    </>
-  )}
-</p>
+                        <span>Iqama: {selectedCustomer.iqamaNo?.trim() || "—"}</span>
+                        <span className="mx-2 text-[#D0D5DD]">·</span>
+                        <span>Contact: {selectedCustomer.mobile || "—"}</span>
+                      </p>
                       {selectedCustomer.whatsapp && (
                         <p className="mt-1 text-xs text-[#667085]">
                           WhatsApp: {selectedCustomer.whatsapp}
@@ -1149,8 +1119,6 @@ if (validUntil < colomboDateInputValue()) {
                                 `${item.roomType || "Room type not selected"} · ${
                                   item.numberOfDays || "0"
                                 } ${Number(item.numberOfDays) === 1 ? "day" : "days"} · ${
-                                  item.acType === "AC" ? "AC" : "Non-AC"
-                                } · ${
                                   item.boardType === "BED_BREAKFAST"
                                     ? "Bed & Breakfast"
                                     : "Room Only"
@@ -1170,6 +1138,11 @@ if (validUntil < colomboDateInputValue()) {
                                 ? `${vehicle.seatCount} seats`
                                 : ""}
                             </p>
+                            {item.additionalDescription.trim() && (
+                              <p className="mt-2 whitespace-pre-wrap text-xs text-[#475467]">
+                                {item.additionalDescription.trim()}
+                              </p>
+                            )}
                           </div>
                           <div className="shrink-0 text-left md:text-right">
                             <p className="text-lg font-bold text-[#1F2933]">
@@ -1350,6 +1323,20 @@ if (validUntil < colomboDateInputValue()) {
                   Transportation
                 </option>
               </select>
+              <div className="mt-5">
+                <label htmlFor="additionalDescription" className="block text-sm font-semibold text-[#1F2933]">
+                  Description <span className="font-normal text-[#667085]">(optional)</span>
+                </label>
+                <textarea
+                  id="additionalDescription"
+                  value={draftItem.additionalDescription}
+                  onChange={(event) => updateDraft("additionalDescription", event.target.value)}
+                  rows={3}
+                  maxLength={2000}
+                  placeholder="Add any extra details for this service"
+                  className="mt-2 w-full resize-y rounded-xl border border-[#D0D5DD] bg-white px-4 py-3 text-sm outline-none focus:border-[#0F6B5B] focus:ring-4 focus:ring-[#0F6B5B]/10"
+                />
+              </div>
               {/* VISA */}
               {draftItem.serviceType ===
                 "UMRAH_VISA" && (
@@ -1445,28 +1432,6 @@ if (validUntil < colomboDateInputValue()) {
                         Add an active stay duration in Settings → Services first.
                       </p>
                     )}
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-[#1F2933]">
-                      AC Type
-                    </label>
-                    <select
-                      value={draftItem.acType}
-                      onChange={(event) =>
-                        updateDraft(
-                          "acType",
-                          event.target.value
-                        )
-                      }
-                      className="mt-2 w-full rounded-xl border border-[#D0D5DD] bg-white px-4 py-3 text-sm outline-none focus:border-[#0F6B5B]"
-                    >
-                      <option value="AC">
-                        AC
-                      </option>
-                      <option value="NON_AC">
-                        Non-AC
-                      </option>
-                    </select>
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-[#1F2933]">

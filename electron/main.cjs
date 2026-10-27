@@ -116,6 +116,71 @@ function getRuntimeDirectory() {
   return path.join(PROJECT_ROOT, "desktop-runtime");
 }
 
+// --------------------------------------------------
+// Persistent application data
+// --------------------------------------------------
+
+function copyMissingFiles(sourceDirectory, destinationDirectory) {
+  if (!fs.existsSync(sourceDirectory)) {
+    return;
+  }
+
+  fs.mkdirSync(destinationDirectory, {
+    recursive: true,
+  });
+
+  for (const entry of fs.readdirSync(sourceDirectory, {
+    withFileTypes: true,
+  })) {
+    const sourcePath = path.join(sourceDirectory, entry.name);
+    const destinationPath = path.join(destinationDirectory, entry.name);
+
+    if (entry.isDirectory()) {
+      copyMissingFiles(sourcePath, destinationPath);
+      continue;
+    }
+
+    // Never overwrite user data that already exists.
+    if (entry.isFile() && !fs.existsSync(destinationPath)) {
+      fs.copyFileSync(sourcePath, destinationPath);
+    }
+  }
+}
+
+function preparePersistentData(runtimeDirectory) {
+  const dataDirectory = path.join(
+    app.getPath("userData"),
+    "data"
+  );
+
+  const logoDirectory = path.join(
+    dataDirectory,
+    "company-logos"
+  );
+
+  fs.mkdirSync(logoDirectory, {
+    recursive: true,
+  });
+
+  // Migrate existing bundled logos if they exist.
+  // Existing files in the user's data directory are preserved.
+  const legacyDirectories = [
+    path.join(runtimeDirectory, "data", "company-logos"),
+    path.join(PROJECT_ROOT, "data", "company-logos"),
+  ];
+
+  for (const legacyDirectory of legacyDirectories) {
+    if (
+      path.resolve(legacyDirectory) !==
+      path.resolve(logoDirectory)
+    ) {
+      copyMissingFiles(legacyDirectory, logoDirectory);
+    }
+  }
+
+  return dataDirectory;
+}
+
 function readEnvironmentFile(filePath) {
   if (!fs.existsSync(filePath)) {
     return null;
@@ -375,7 +440,8 @@ async function startNextServer(environment) {
   serverOutput = [];
 
   const runtimeDirectory = getRuntimeDirectory();
-  const serverFile = getServerFile();
+const appDataDirectory = preparePersistentData(runtimeDirectory);
+const serverFile = getServerFile();
 
   writeLog("INFO", "Starting Next.js server.");
   writeLog("INFO", `Packaged app: ${app.isPackaged}`);
@@ -394,6 +460,8 @@ async function startNextServer(environment) {
   const runtimeEnvironment = {
     ...process.env,
     ...environment,
+
+    APP_DATA_DIR: appDataDirectory,
 
     NODE_ENV: "production",
     PORT: String(PORT),
