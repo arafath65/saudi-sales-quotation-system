@@ -244,37 +244,38 @@ if (validUntilText < getCurrentQuotationDate()) {
     }
 
     
-    // Require exactly two different bank accounts.
+    // Bank accounts are optional. A quotation may have zero, one, or two.
     const selectedBankIds = Array.isArray(body.selectedBankIds)
       ? body.selectedBankIds.map((value) => Number(value))
       : [];
 
     if (
-      selectedBankIds.length !== 2 ||
+      selectedBankIds.length > 2 ||
       selectedBankIds.some(
         (id) => !Number.isInteger(id) || id <= 0
       ) ||
-      new Set(selectedBankIds).size !== 2
+      new Set(selectedBankIds).size !== selectedBankIds.length
     ) {
       return NextResponse.json(
         {
           success: false,
           message:
-            "Select exactly two different bank accounts for this quotation.",
+            "Select up to two different valid bank accounts, or leave them unselected.",
         },
         { status: 400 }
       );
     }
 
-    const selectedBanks =
-      await prisma.quotationBankDetail.findMany({
-        where: {
-          id: { in: selectedBankIds },
-        },
-      });
+    const selectedBanks = selectedBankIds.length
+      ? await prisma.quotationBankDetail.findMany({
+          where: {
+            id: { in: selectedBankIds },
+          },
+        })
+      : [];
 
     if (
-      selectedBanks.length !== 2 ||
+      selectedBanks.length !== selectedBankIds.length ||
       selectedBanks.some(
         (bank) =>
           !bank.bankName.trim() ||
@@ -286,7 +287,7 @@ if (validUntilText < getCurrentQuotationDate()) {
         {
           success: false,
           message:
-            "One or more selected bank accounts are unavailable. Refresh and select two valid accounts.",
+            "One or more selected bank accounts are unavailable. Refresh and choose valid accounts, or leave them unselected.",
         },
         { status: 400 }
       );

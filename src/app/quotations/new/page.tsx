@@ -293,6 +293,7 @@ export default function NewQuotationPage() {
   const amountRef = useRef<HTMLInputElement>(null);
   const quantityRef = useRef<HTMLInputElement>(null);
   const discountRef = useRef<HTMLInputElement>(null);
+  const customerPickerRef = useRef<HTMLDivElement>(null);
   const adultPriceRef = useRef<HTMLInputElement>(null);
   const adultQuantityRef = useRef<HTMLInputElement>(null);
   const childPriceRef = useRef<HTMLInputElement>(null);
@@ -421,6 +422,33 @@ export default function NewQuotationPage() {
     }, 0);
     return () => window.clearTimeout(timer);
   }, []);
+
+  useEffect(() => {
+    function handleOutsidePointerDown(event: PointerEvent) {
+      const target = event.target;
+      if (
+        target instanceof Node &&
+        customerPickerRef.current &&
+        !customerPickerRef.current.contains(target)
+      ) {
+        setShowCustomerResults(false);
+      }
+    }
+
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setShowCustomerResults(false);
+      }
+    }
+
+    document.addEventListener("pointerdown", handleOutsidePointerDown);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("pointerdown", handleOutsidePointerDown);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, []);
+
   const selectedCustomer = useMemo(
     () =>
       customers.find(
@@ -444,8 +472,6 @@ export default function NewQuotationPage() {
           customer.name,
           customer.mobile,
           customer.whatsapp,
-          customer.iqamaNo,
-          customer.passportNo,
         ]
           .filter(Boolean)
           .some((value) =>
@@ -676,12 +702,6 @@ if (validUntil < colomboDateInputValue()) {
       setError("Please add at least one service.");
       return;
     }
-    if (quotationOptions.selectedBankIds.length !== 2) {
-  setError(
-    "Please select exactly two bank accounts for this quotation."
-  );
-  return;
-}
     try {
       setSaving(true);
       setError("");
@@ -935,7 +955,7 @@ if (validUntil < colomboDateInputValue()) {
                   Select an existing customer.
                 </p>
               </div>
-              <div className="relative mt-5">
+              <div ref={customerPickerRef} className="relative mt-5">
                 <label
                   htmlFor="customerSearch"
                   className="block text-sm font-semibold text-[#1F2933]"
@@ -959,7 +979,7 @@ if (validUntil < colomboDateInputValue()) {
                   onFocus={() =>
                     setShowCustomerResults(true)
                   }
-                  placeholder="Search by customer name, Iqama, contact or code..."
+                  placeholder="Search by customer name, contact or code..."
                   className="mt-2 w-full rounded-xl border border-[#D0D5DD] px-4 py-3 text-sm outline-none focus:border-[#0F6B5B] focus:ring-4 focus:ring-[#0F6B5B]/10"
                 />
                 {showCustomerResults &&
@@ -991,9 +1011,7 @@ if (validUntil < colomboDateInputValue()) {
                                 </span>
                               </div>
                               <p className="mt-1 text-xs text-[#667085]">
-                                <span>Iqama: {customer.iqamaNo?.trim() || "—"}</span>
-                                <span className="mx-2 text-[#D0D5DD]">·</span>
-                                <span>Contact: {customer.mobile || "—"}</span>
+                                Contact: {customer.mobile || "—"}
                               </p>
                             </button>
                           )
@@ -1010,15 +1028,8 @@ if (validUntil < colomboDateInputValue()) {
                         {selectedCustomer.name}
                       </p>
                       <p className="mt-1 text-xs text-[#667085]">
-                        <span>Iqama: {selectedCustomer.iqamaNo?.trim() || "—"}</span>
-                        <span className="mx-2 text-[#D0D5DD]">·</span>
-                        <span>Contact: {selectedCustomer.mobile || "—"}</span>
+                        Contact: {selectedCustomer.mobile || "—"}
                       </p>
-                      {selectedCustomer.whatsapp && (
-                        <p className="mt-1 text-xs text-[#667085]">
-                          WhatsApp: {selectedCustomer.whatsapp}
-                        </p>
-                      )}
                     </div>
                     <span className="rounded-full bg-[#0F6B5B]/10 px-3 py-1 text-[10px] font-bold text-[#0F6B5B]">
                       {selectedCustomer.customerCode}

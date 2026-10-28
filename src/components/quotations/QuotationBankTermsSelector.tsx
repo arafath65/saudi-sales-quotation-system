@@ -126,7 +126,7 @@ export default function QuotationBankTermsSelector({
     const selected = value.selectedBankIds;
 
     if (checked && selected.length >= 2) {
-      setSelectionError("Select up to two bank accounts for one quotation.");
+      setSelectionError("You can select up to two bank accounts.");
       return;
     }
 
@@ -165,8 +165,8 @@ export default function QuotationBankTermsSelector({
           </h2>
 
           <p className="mt-1 text-sm leading-5 text-[#667085]">
-            Bank details are optional. Choose up to two saved bank accounts,
-            and select the relevant terms for each service type in this quotation.
+            Bank details are optional. Select zero, one, or up to two saved bank
+            accounts, and choose terms for each service type as needed.
           </p>
         </div>
 
@@ -201,10 +201,12 @@ export default function QuotationBankTermsSelector({
             className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${
               value.selectedBankIds.length > 0
                 ? "bg-emerald-50 text-emerald-700"
-                : "bg-gray-100 text-gray-600"
+                : "bg-slate-100 text-slate-600"
             }`}
           >
-            {value.selectedBankIds.length} selected · optional
+            {value.selectedBankIds.length === 0
+              ? "Optional · none selected"
+              : `${value.selectedBankIds.length} selected`}
           </span>
         </div>
 
